@@ -30,12 +30,12 @@ unsigned char faces[256][6] = {
 		{13,13,13,13,13,13}, /*lava*/
 		{9,9,9,9,9,9}, /*sand*/
 		{12,12,12,12,12,12}, /*gravel*/
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{7,7,6,6,6,6}, /* log?? */
+		{17,17,17,17,17,17}, /* Gold*/
+		{16,16,16,16,16,16}, /*Iron ore*/
+		{15,15,15,15,15,15}, /*Coal ore*/
+		{7,7,6,6,6,6}, /* log */
 		{5,5,5,5,5,5}, /* leaves*/
-		{0,0,0,0,0,0}, /* log?? */
+		{0,0,0,0,0,0}, 
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
@@ -72,6 +72,7 @@ unsigned char faces[256][6] = {
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
+		{19,19,19,19,19,19}, /*Diamond*/
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
@@ -88,8 +89,7 @@ unsigned char faces[256][6] = {
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
+		{18,18,18,18,18,18}, /*Red stone*/
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
@@ -494,7 +494,7 @@ build_section(unsigned char section[4096], int sy, int cx, int cz, struct geomet
 		if (above) 	build_top(nx,ny+1,nz, bottom_ints, 0,-1,0, g, 	faces[above][1]);
 		if (left)	build_top(nx-1,ny,nz, right_ints, 1,0,0, g, 	faces[left][2]);
 		if (right)	build_top(nx+1,ny,nz, left_ints, -1,0,0, g, 	faces[right][3]);
-		//if (front)	build_top(nx,ny,nz+1, back_ints, 0,0,-1, g, 	faces[front][4]);
+		if (front)	build_top(nx,ny,nz+1, back_ints, 0,0,-1, g, 	faces[front][4]);
 		if (back)	build_top(nx,ny,nz-1, front_ints, 0,0,1, g, 	faces[back][5]);
 		}
 	}
@@ -583,7 +583,8 @@ main(int argc, char *argv[])
 setup_sdl("MCViewer", 1024, 1024);
 
 fp = fopen("resources/tiles.tga", "rb");
-unsigned char pixels[1024*1024*4];
+void* pixels;
+pixels = malloc(1024*1024*4);
 fseek(fp, 18, SEEK_SET);
 fread(pixels, 1024*1024, 4, fp);
 fclose(fp);
@@ -595,21 +596,27 @@ glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1024, 1024, 0, GL_BGRA, GL_UNSIGNED_BYTE
 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
+free(pixels);
+
 glEnable(GL_TEXTURE_2D);
 glEnable(GL_DEPTH_TEST);
 glEnable(GL_LIGHTING);
 glEnable(GL_LIGHT0);
+glEnable(GL_LIGHT1);
+glEnable(GL_LIGHT2);
 glEnable(GL_CULL_FACE);
 
 float dir[] = {0,0.7,0.4,0};
-float color[] = {1,1,1};
+float color[] = {1,1,1,1};
 glLightfv(GL_LIGHT0, GL_POSITION, dir);
 glLightfv(GL_LIGHT0, GL_AMBIENT, color);
-//glLightfv(GL_LIGHT0, GL_DIFFUSE, color);
+glLightModelfv(GL_LIGHT_MODEL_AMBIENT, color);
 
 glMatrixMode(GL_PROJECTION);
 glFrustum(-1, 1, -1, 1, 1, 1000);
 glMatrixMode(GL_MODELVIEW);
+
+glClearColor(0,0,1,0);
 
 float x=0;
 float y=-100;
@@ -623,33 +630,73 @@ printf("g count %i\n", geometry.count);
 
 gvbo = geometry_to_vbo(&geometry);
 char up=0,down=0,left=0,right=0;
+char q_key=0;
+char e_key=0;
+
+float rx=0;
+float ry=0;
+float rz=0;
+float m[16]={0};
 	while(!quit) {
+		float fx, fy, fz;
+		fx = m[2];
+		fy = m[6];
+		fz = m[10];
+
 		while (SDL_PollEvent(&event)) {
 			switch (event.type) {
 				case SDL_KEYDOWN: 
 					switch(event.key.keysym.sym) {
 						case SDLK_ESCAPE:quit = 1;break;
-						case SDLK_w:z+=1; break;
-						case SDLK_s:z-=1; break;
-						case SDLK_a:x+=1; break;
-						case SDLK_d:x-=1; break;
-						case SDLK_q:y+=1; break;
-						case SDLK_e:y-=1; break;
+						case SDLK_w: up=1; break;
+						case SDLK_s: down=1; break;
+						case SDLK_a: left=1; break;
+						case SDLK_d: right=1; break;
+						case SDLK_q: q_key=1; break;
+						case SDLK_e: e_key=1; break;
 						case SDLK_z:printf("%f %f %f\n",x/16,y/16,z/16); break;
 						}
+					break;
 				case SDL_KEYUP: 
 					switch(event.key.keysym.sym) {
+						case SDLK_w: up=0; break;
+						case SDLK_s: down=0; break;
+						case SDLK_a: left=0; break;
+						case SDLK_d: right=0; break;
+						case SDLK_q: q_key=0; break;
+						case SDLK_e: e_key=0; break;
 						}
+					break;
 				}
 			}
-		if (up) {
-			puts("UP");
-			z++;
-			}
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+#define SPEED 0.4
+
+	if (up) {	x+=m[2]*SPEED; y+=m[6]*SPEED; z+=m[10]*SPEED;}
+	if (down) {	x-=m[2]*SPEED; y-=m[6]*SPEED; z-=m[10]*SPEED;}
+	if (left) {	x+=m[0]*SPEED; y+=m[4]*SPEED; z+=m[8]*SPEED;}
+	if (right) {	x-=m[0]*SPEED; y-=m[4]*SPEED; z-=m[8]*SPEED;}
+	if (q_key) {y+=1*SPEED;}
+	if (e_key) {y-=1*SPEED;}
+
+		int mx,my;
+		int mleft = 0;
+		int ret = SDL_GetRelativeMouseState(&mx, &my);
+		if (ret & SDL_BUTTON(SDL_BUTTON_LEFT)) mleft = 1;
+
+		if (mx && mleft) {
+			ry += mx/4.0;
+		}
+		if (my && mleft) {
+			rx += my/4.0;
+		}
 
 		glLoadIdentity();
+		glRotatef(rx, 1,0,0);
+		glRotatef(ry, 0,1,0);
 		glTranslatef(x,y,z);
+		glGetFloatv(GL_MODELVIEW_MATRIX, m);
+		
 		glDrawArrays(GL_TRIANGLES, 0, geometry.count);
 	//	glBindBuffer(GL_ARRAY_BUFFER, vbo2);
 	//	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
