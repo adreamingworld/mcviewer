@@ -7,6 +7,6 @@
 
 #define CHUNK 16384
 
-int inf(void *source, void *dest, unsigned int uncompressed_length);
+int inf(void *source, void **dest, unsigned int uncompressed_length);
 
 #endif /* MYZ_H */

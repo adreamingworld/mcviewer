@@ -7,10 +7,14 @@ EXTRA_DIST = 	README.md
 bin_PROGRAMS = mcviewer
 
 mcviewer_SOURCES = \
+		src/nbt.c \
+		src/nbt.h \
+		src/nbt_utils.c \
+		src/nbt_utils.h \
 		src/myz.c \
 		src/myz.h \
 		src/main.c
 			
 
-#hello_CFLAGS = @SDL_CFLAGS@ -DDATA_PATH='"$(pkgdatadir)"'
-#hello_LDADD = @SDL_LIBS@
+mcviewer_CFLAGS = @GLEW_CFLAGS@ @SDL2_CFLAGS@ @ZLIB_CFLAGS@ -DDATA_PATH='"$(pkgdatadir)"'
+mcviewer_LDADD = @GLEW_LIBS@ @SDL2_LIBS@ @ZLIB_LIBS@

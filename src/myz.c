@@ -13,7 +13,7 @@
 
 #include <myz.h>
 
-int inf(void *source, void *dest, unsigned int compressed_length)
+int inf(void *source, void **dest, unsigned int compressed_length)
 {
 	int ret;
 	unsigned have;
@@ -30,9 +30,7 @@ int inf(void *source, void *dest, unsigned int compressed_length)
 	strm.avail_in = 0;
 	strm.next_in = Z_NULL;
 
-	/*Use inflateInit2 for zipped*/
-	//ret = inflateInit(&strm);
-	ret = inflateInit2(&strm, -15);
+	ret = inflateInit(&strm);
 
 	if (ret != Z_OK) {
 		printf("Failed to init Z\n");
@@ -60,20 +58,24 @@ int inf(void *source, void *dest, unsigned int compressed_length)
 					printf("DATA ERROR\n");
 				case Z_MEM_ERROR:
 					(void)inflateEnd(&strm);
-					return ret;
+					return 0;
 			}
 			have = CHUNK - strm.avail_out;
 			/*!!!write out to dest*/
-			memcpy(dest+out_position, out, have);
+			memcpy(*dest+out_position, out, have);
 			out_position += have;
 
 		} while(strm.avail_out == 0);
 
 	} while(ret != Z_STREAM_END);
 
-	printf("Have %i bytes\n", out_position);
+	//printf("Have %i bytes\n", out_position);
 
 	(void)inflateEnd(&strm);
+
+	/*0 if fail*/
+	return (ret==Z_STREAM_END) ? out_position : 0;
+	/*Deal with errors*/
 	return ret == Z_STREAM_END ? Z_OK : Z_DATA_ERROR;
 
 	return 0;
