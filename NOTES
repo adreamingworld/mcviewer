@@ -1,8 +1,7 @@
 
 mca file
 --------
-
-4k chunk locations
+4k chunk locations    3bytes = offset/4k chunks, 1byte=number of sectors
 4k time stamps, last visited?
 
 NBT structs per chunk
@@ -20,8 +19,8 @@ PAYLOAD (depends on tag)
 root tag is a compound
 	0x0a COMPOUND TAG
 	0x0000 short saying that name is 0 length i.e. no name (is root)
-
+	...
 	ALL TAGS FOR DOCUMENT
-
+	...
 	0x00 END_TAG (end tag needs no name, so always 1 byte long)
 

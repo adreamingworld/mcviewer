@@ -20,7 +20,7 @@ unsigned char faces[256][6] = {
 		{1,1,1,1,1,1}, /*stone*/
 		{3,2,4,4,4,4}, /*grass*/
 		{2,2,2,2,2,2}, /*dirt*/
-		{0,0,0,0,0,0},
+		{20,20,20,20,20,20}, /*cobble*/
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
@@ -37,7 +37,7 @@ unsigned char faces[256][6] = {
 		{5,5,5,5,5,5}, /* leaves*/
 		{0,0,0,0,0,0}, 
 		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
+		{28,28,28,28,28,28}, /*Lapis???*/
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
@@ -64,13 +64,13 @@ unsigned char faces[256][6] = {
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
+		{21,21,21,21,21,21}, /*Mossy cobble*/
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
+		{28,28,28,28,28,28}, /*Mob spawner*/
 		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
+		{22,23,24,25,26,27}, /*Chest*/
 		{0,0,0,0,0,0},
 		{19,19,19,19,19,19}, /*Diamond*/
 		{0,0,0,0,0,0},
@@ -404,7 +404,7 @@ load_chunk(FILE *fp, struct chunk *chunk)
 
 		blocks = nbt_find_child_by_name(section, "Blocks");
 		y_tag = nbt_find_child_by_name(section, "Y");
-		y = *((int*)y_tag->payload);
+		y = *((char*)y_tag->payload);
 		if (!blocks) puts("Failed to get blocks");
 		if (y>15 || y<0) {puts("Y for chunk out of bounds"); exit(-1);}
 
@@ -509,7 +509,7 @@ build_chunk(struct chunk* chunk, int x, int z, struct geometry* g)
 	}
 
 void
-build_region(struct region* region, struct geometry* g)
+old_build_region(struct region* region, struct geometry* g)
 	{
 	int i;
 	for (i=0; i<32*32; i++) {
@@ -519,6 +519,55 @@ build_region(struct region* region, struct geometry* g)
 		if (region->chunks[index]) {
 			build_chunk(region->chunks[index], x, z, g);
 			}
+		}
+	}
+char
+get_id(struct region* r, float x, float y, float z)
+	{
+	unsigned char id=12;
+	int chunkx = x/16;
+	int chunkz = z/16;
+	int blockx = (int)x%16;
+	int blockz = (int)z%16;
+	int blocky = (int)y%16;
+	int isection = y/16;
+	struct chunk* chunk=0;
+
+	/*Get chunk*/
+	chunk = r->chunks[chunkx+chunkz*32];
+	if (!chunk) return 0;
+	id = chunk->sections[isection][blockx + (blockz*16) + (blocky*(16*16))];
+
+
+	return id;
+	}
+
+void
+build_region(struct region* region, struct geometry* g)
+	{
+	int i;
+	for (i=0; i<512*512*256; i++) {
+		int x= i%512;
+		int y= i/(512*512);
+		int z= (i%(512*512))/512;
+
+		unsigned char id = get_id(region, x,y, z);
+		if (id !=0) continue;
+
+		unsigned char below=0, above=0, left=0, right=0, front=0, back=0;
+		if (y>0) below = 	get_id(region, x,y-1,z);
+		if (y<255) above = 	get_id(region, x,y+1,z);
+		if (x>0) left = 	get_id(region, x-1,y,z);
+		if (x<511) right = 	get_id(region, x+1,y,z);
+		if (z<511) front = 	get_id(region, x,y,z+1);
+		if (z>0) back = 	get_id(region, x,y,z-1);
+
+		if (below) 	build_top(x,y-1,z, top_ints, 0,1,0, g, 	faces[below][0]);
+		if (above) 	build_top(x,y+1,z, bottom_ints, 0,-1,0, g, 	faces[above][1]);
+		if (left)	build_top(x-1,y,z, right_ints, 1,0,0, g, 	faces[left][2]);
+		if (right)	build_top(x+1,y,z, left_ints, -1,0,0, g, 	faces[right][3]);
+		if (front)	build_top(x,y,z+1, back_ints, 0,0,-1, g, 	faces[front][4]);
+		if (back)	build_top(x,y,z-1, front_ints, 0,0,1, g, 	faces[back][5]);
 		}
 	}
 void
@@ -545,6 +594,46 @@ geometry_to_vbo(struct geometry* g)
 	return vbo;
 	}
 
+struct line {
+	float a[3];
+	float b[3];
+	};
+
+void
+draw_line(struct line *l)
+	{
+	glDisable(GL_TEXTURE_2D);
+	glDisable(GL_LIGHTING);
+		glBegin(GL_LINES);
+		glVertex3fv(l->a);
+		glVertex3fv(l->b);
+		glEnd();
+		glBegin(GL_POINTS);
+		glVertex3fv(l->a);
+		glVertex3fv(l->b);
+		glEnd();
+	glEnable(GL_TEXTURE_2D);
+	glEnable(GL_LIGHTING);
+	}
+#define lerp(a,b,t) a+((b-a)*t)
+
+unsigned char
+cast_ray(struct line *l, struct region* region)
+	{
+	unsigned char id;
+	float length=0;
+	while(length<4.0f) {
+		float x,y,z;
+		length += 0.01f;
+		float prog = length/4.0;
+		x = lerp(l->a[0], l->b[0], prog);
+		y = lerp(l->a[1], l->b[1], prog);
+		z = lerp(l->a[2], l->b[2], prog);
+		id = get_id(region, x,y,z);
+		if (id)break;
+		}
+	return id;
+	}
 int
 main(int argc, char *argv[])
 	{
@@ -554,7 +643,7 @@ main(int argc, char *argv[])
 	int region_map[0x2000];
 	puts(PACKAGE_STRING);
 	struct region region = {0};
-
+struct line line = {0,0,0, 0,0,10};
 	filename = argv[1];
 
 	printf("Opening region file %s\n", filename);
@@ -613,14 +702,14 @@ glLightfv(GL_LIGHT0, GL_AMBIENT, color);
 glLightModelfv(GL_LIGHT_MODEL_AMBIENT, color);
 
 glMatrixMode(GL_PROJECTION);
-glFrustum(-1, 1, -1, 1, 1, 1000);
+glFrustum(-1, 1, -1, 1, 0.7, 1000);
 glMatrixMode(GL_MODELVIEW);
 
 glClearColor(0,0,1,0);
 
 float x=0;
-float y=-100;
-float z=-50;
+float y=100;
+float z=50;
 
 struct geometry geometry;
 unsigned int gvbo;
@@ -654,7 +743,19 @@ float m[16]={0};
 						case SDLK_d: right=1; break;
 						case SDLK_q: q_key=1; break;
 						case SDLK_e: e_key=1; break;
-						case SDLK_z:printf("%f %f %f\n",x/16,y/16,z/16); break;
+						case SDLK_z:printf("%f %f %f\n",x,y,z); break;
+						case SDLK_SPACE:
+							{
+							line.a[0]=x+-m[2]*1; 
+							line.a[1]=y+-m[6]*1; 
+							line.a[2]=z+-m[10]*1;
+							line.b[0]=x+-m[2]*4; 
+							line.b[1]=y+-m[6]*4; 
+							line.b[2]=z+-m[10]*4;
+							unsigned char id = cast_ray(&line, &region);
+							printf("ID=%i\n", id);
+							break;
+							}
 						}
 					break;
 				case SDL_KEYUP: 
@@ -672,12 +773,12 @@ float m[16]={0};
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 #define SPEED 0.4
 
-	if (up) {	x+=m[2]*SPEED; y+=m[6]*SPEED; z+=m[10]*SPEED;}
-	if (down) {	x-=m[2]*SPEED; y-=m[6]*SPEED; z-=m[10]*SPEED;}
-	if (left) {	x+=m[0]*SPEED; y+=m[4]*SPEED; z+=m[8]*SPEED;}
-	if (right) {	x-=m[0]*SPEED; y-=m[4]*SPEED; z-=m[8]*SPEED;}
-	if (q_key) {y+=1*SPEED;}
-	if (e_key) {y-=1*SPEED;}
+	if (up) {	x-=m[2]*SPEED; y-=m[6]*SPEED; z-=m[10]*SPEED;}
+	if (down) {	x+=m[2]*SPEED; y+=m[6]*SPEED; z+=m[10]*SPEED;}
+	if (left) {	x-=m[0]*SPEED; y-=m[4]*SPEED; z-=m[8]*SPEED;}
+	if (right) {	x+=m[0]*SPEED; y+=m[4]*SPEED; z+=m[8]*SPEED;}
+	if (q_key) {y-=1*SPEED;}
+	if (e_key) {y+=1*SPEED;}
 
 		int mx,my;
 		int mleft = 0;
@@ -694,13 +795,13 @@ float m[16]={0};
 		glLoadIdentity();
 		glRotatef(rx, 1,0,0);
 		glRotatef(ry, 0,1,0);
-		glTranslatef(x,y,z);
+		glTranslatef(-x,-y,-z);
 		glGetFloatv(GL_MODELVIEW_MATRIX, m);
 		
 		glDrawArrays(GL_TRIANGLES, 0, geometry.count);
-	//	glBindBuffer(GL_ARRAY_BUFFER, vbo2);
-	//	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-	//	glDrawArrays(GL_TRIANGLES, 0, 3);
+glLineWidth(4);
+glPointSize(8);
+		draw_line(&line);
 		SDL_GL_SwapWindow(window);
 		}
 
