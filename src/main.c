@@ -1,6 +1,7 @@
 #include <config.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 #include <myz.h>
 #include <nbt.h>
@@ -11,6 +12,9 @@
 #include <SDL_opengl.h>
 
 unsigned int vao, vbo, vbo2;
+
+#define BLOCK_SIZE 16
+#define SPEED 0.2
 
 /*
 	below above left right front back
@@ -171,7 +175,7 @@ unsigned char faces[256][6] = {
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
+		{29,29,29,29,29,29,}, /*Quartz block*/
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
 		{0,0,0,0,0,0},
@@ -286,15 +290,15 @@ struct geometry {
 	};
 
 float cube_verts[] = {
-	-0.5,	0.5,	0.5,
-	0.5,	0.5,	0.5,
-	0.5,	-0.5,	0.5,
-	-0.5,	-0.5,	0.5,
+	BLOCK_SIZE*0,		BLOCK_SIZE*1,		BLOCK_SIZE*1,
+	BLOCK_SIZE*1,		BLOCK_SIZE*1,		BLOCK_SIZE*1,
+	BLOCK_SIZE*1,		BLOCK_SIZE*0,		BLOCK_SIZE*1,
+	BLOCK_SIZE*0,		BLOCK_SIZE*0,		BLOCK_SIZE*1,
 	/* back */
-	-0.5,  0.5,  	-0.5,
-	0.5,   0.5,  	-0.5,
-	0.5,  -0.5,  	-0.5,
-	-0.5, -0.5,  	-0.5,
+	BLOCK_SIZE*0,  		BLOCK_SIZE*1,  		BLOCK_SIZE*0,
+	BLOCK_SIZE*1,   	BLOCK_SIZE*1,  		BLOCK_SIZE*0,
+	BLOCK_SIZE*1,  		BLOCK_SIZE*0,  		BLOCK_SIZE*0,
+	BLOCK_SIZE*0, 		BLOCK_SIZE*0,  		BLOCK_SIZE*0,
 	};
 
 int front_ints[] = {0,3,2, 0,2,1};
@@ -468,59 +472,6 @@ setup_sdl(char* title, int w, int h)
 	//glCreateVertexArrays(1, &vao);
 	}
 
-void
-build_section(unsigned char section[4096], int sy, int cx, int cz, struct geometry* g)
-	{
-	int i;
-	for (i=0; i<16*16*16; i++) {
-		int x = i%16;
-		int z = (i%(16*16))/16;
-		int y = i/(16*16);
-		if (section[i] !=0) continue;
-	
-		int nx = x+cx*16;
-		int ny = y+sy*16;
-		int nz = z+cz*16;
-
-		unsigned char below=0, above=0, left=0, right=0, front=0, back=0;
-		if (y>0) below = section[i-(16*16)];
-		if (y<15) above = section[i+(16*16)];
-		if (x>0) left = section[i-1];
-		if (x<15) right = section[i+1];
-		if (z<15) front = section[i+16];
-		if (z>0) back = section[i-16];
-
-		if (below) 	build_top(nx,ny-1,nz, top_ints, 0,1,0, g, 	faces[below][0]);
-		if (above) 	build_top(nx,ny+1,nz, bottom_ints, 0,-1,0, g, 	faces[above][1]);
-		if (left)	build_top(nx-1,ny,nz, right_ints, 1,0,0, g, 	faces[left][2]);
-		if (right)	build_top(nx+1,ny,nz, left_ints, -1,0,0, g, 	faces[right][3]);
-		if (front)	build_top(nx,ny,nz+1, back_ints, 0,0,-1, g, 	faces[front][4]);
-		if (back)	build_top(nx,ny,nz-1, front_ints, 0,0,1, g, 	faces[back][5]);
-		}
-	}
-
-void
-build_chunk(struct chunk* chunk, int x, int z, struct geometry* g)
-	{
-	int i;
-	for (i=0; i<16; i++) {
-		build_section(chunk->sections[i], i, x, z, g);
-		}
-	}
-
-void
-old_build_region(struct region* region, struct geometry* g)
-	{
-	int i;
-	for (i=0; i<32*32; i++) {
-		int x= (i%32);
-		int z= i/32;
-		int index = x+(z*32);
-		if (region->chunks[index]) {
-			build_chunk(region->chunks[index], x, z, g);
-			}
-		}
-	}
 char
 get_id(struct region* r, float x, float y, float z)
 	{
@@ -551,6 +502,10 @@ build_region(struct region* region, struct geometry* g)
 		int y= i/(512*512);
 		int z= (i%(512*512))/512;
 
+
+	/*Skip if chunk doesn't even exist*/
+	if (!region->chunks[(x/16)+(z/16)*32]) continue;
+
 		unsigned char id = get_id(region, x,y, z);
 		if (id !=0) continue;
 
@@ -562,12 +517,16 @@ build_region(struct region* region, struct geometry* g)
 		if (z<511) front = 	get_id(region, x,y,z+1);
 		if (z>0) back = 	get_id(region, x,y,z-1);
 
-		if (below) 	build_top(x,y-1,z, top_ints, 0,1,0, g, 	faces[below][0]);
-		if (above) 	build_top(x,y+1,z, bottom_ints, 0,-1,0, g, 	faces[above][1]);
-		if (left)	build_top(x-1,y,z, right_ints, 1,0,0, g, 	faces[left][2]);
-		if (right)	build_top(x+1,y,z, left_ints, -1,0,0, g, 	faces[right][3]);
-		if (front)	build_top(x,y,z+1, back_ints, 0,0,-1, g, 	faces[front][4]);
-		if (back)	build_top(x,y,z-1, front_ints, 0,0,1, g, 	faces[back][5]);
+		int nx = x*BLOCK_SIZE;
+		int ny = y*BLOCK_SIZE;
+		int nz = z*BLOCK_SIZE;
+
+		if (below) 	build_top(nx,ny-BLOCK_SIZE,nz, top_ints, 0,1,0, g, 	faces[below][0]);
+		if (above) 	build_top(nx,ny+BLOCK_SIZE,nz, bottom_ints, 0,-1,0, g, 	faces[above][1]);
+		if (left)	build_top(nx-BLOCK_SIZE,ny,nz, right_ints, 1,0,0, g, 	faces[left][2]);
+		if (right)	build_top(nx+BLOCK_SIZE,ny,nz, left_ints, -1,0,0, g, 	faces[right][3]);
+		if (front)	build_top(nx,ny,nz+BLOCK_SIZE, back_ints, 0,0,-1, g, 	faces[front][4]);
+		if (back)	build_top(nx,ny,nz-BLOCK_SIZE, front_ints, 0,0,1, g, 	faces[back][5]);
 		}
 	}
 void
@@ -602,36 +561,139 @@ struct line {
 void
 draw_line(struct line *l)
 	{
+	float a[3];
+	float b[3];
+	a[0] = l->a[0]*BLOCK_SIZE;
+	a[1] = l->a[1]*BLOCK_SIZE;
+	a[2] = l->a[2]*BLOCK_SIZE;
+	b[0] = l->b[0]*BLOCK_SIZE;
+	b[1] = l->b[1]*BLOCK_SIZE;
+	b[2] = l->b[2]*BLOCK_SIZE;
 	glDisable(GL_TEXTURE_2D);
 	glDisable(GL_LIGHTING);
 		glBegin(GL_LINES);
-		glVertex3fv(l->a);
-		glVertex3fv(l->b);
+		glColor3f(0.5, 0.5, 0.5);
+		glVertex3fv(a);
+		glVertex3fv(b);
 		glEnd();
 		glBegin(GL_POINTS);
-		glVertex3fv(l->a);
-		glVertex3fv(l->b);
+		glColor3f(0,1,0);
+		glVertex3fv(a);
+		glColor3f(1,0,0);
+		glVertex3fv(b);
 		glEnd();
 	glEnable(GL_TEXTURE_2D);
 	glEnable(GL_LIGHTING);
+		glColor3f(1,1,1);
+	}
+/*
+We don't really need the square root to get the length?
+we want the angle, not the actual length
+so the proportion is important not the exact length?
+*/
+/* returns cos(theta) not theta*/
+float
+angle_between3(float v1[3], float v2[3])
+	{
+	/*ANGLE BETWEEN TWO VECTORS*/
+	float len1 = v1[0]*v1[0] + v1[1]*v1[1] + v1[2]*v1[2];
+	len1 = sqrt(len1);
+	float len2 = v2[0]*v2[0] + v2[1]*v2[1] + v2[2]*v2[2];
+	len2 = sqrt(len2);
+	float dot = v1[0]*v2[0] + v1[1]*v2[1] + v1[2]*v2[2];
+	float angle = dot/(len1*len2);
+	printf("Angle: %f\n", 180*(acos(angle)/M_PI));
+	return angle;
 	}
 #define lerp(a,b,t) a+((b-a)*t)
 
+/*
+	find next intersection along a line to the x y and z axes
+	see which is shorter, go that length along the line
+	get id at that point
+	repeat till length = max_length
+
+	find X
+	adjacent = point to point with x axis on next grid point
+	cos(theta) = (a . b) / (|a| . |b|)
+	Already have cos(theta) just use directly
+	Hypotonese = adjacent / cos(theta) 
+*/
+float
+get_next_intersection(int axis, float ray[3], float pos[3])
+	{
+	float length;
+		float next[3];
+		float adj;
+		/*init all*/
+		next[0]=0;
+		next[1]=0;
+		next[2]=0;
+
+		if (ray[axis]>0) {
+			adj= 1-(pos[axis] - floor(pos[axis]));
+			next[axis]= 1;
+			}
+		else {
+			adj= (pos[axis] - floor(pos[axis]))+0.1;/*add 0.1 to push into next cube*/
+			next[axis]= -1;
+			}
+		float angle = angle_between3(ray, next);
+		length= adj/angle;
+		return length;
+	}
 unsigned char
 cast_ray(struct line *l, struct region* region)
 	{
 	unsigned char id;
-	float length=0;
-	while(length<4.0f) {
-		float x,y,z;
-		length += 0.01f;
-		float prog = length/4.0;
-		x = lerp(l->a[0], l->b[0], prog);
-		y = lerp(l->a[1], l->b[1], prog);
-		z = lerp(l->a[2], l->b[2], prog);
+	float x,y,z;
+	float total_length=0;
+	float ray[3];
+	float c_pos[3]; /*current position on ray*/
+	memcpy(c_pos, l->a, sizeof(float)*3);
+	/* Get the vector of the ray */
+	ray[0] = l->b[0] - l->a[0];
+	ray[1] = l->b[1] - l->a[1];
+	ray[2] = l->b[2] - l->a[2];
+	printf("ray %.2f %.2f %.2f", ray[0], ray[1], ray[2]);
+	float ray_length = sqrt(ray[0]*ray[0] + ray[1]*ray[1] + ray[2]*ray[2]);
+	printf("length %02f\n", ray_length);
+
+		printf("initial c_pos:%f %f %f\n", c_pos[0], c_pos[1], c_pos[2]);
+
+	int i;
+	while(1) {
+		/*Get length to next X,Y,Z intersection*/
+		float tox = get_next_intersection(0, ray, c_pos);
+		float toy = get_next_intersection(1, ray, c_pos);
+		float toz = get_next_intersection(2, ray, c_pos);
+		float prog=toz; /*progress*/
+		if (tox<0 || toy<0 || toz<0) exit(-1);
+		/*Choose shortest*/
+		if (toy<prog) prog=toy;
+		if (tox<prog) prog=tox;
+		if (prog == -INFINITY) {
+			puts("Equals INITITY");
+			exit(-1);
+			}
+		printf("prog=%f total=%f\n", prog, total_length);
+		total_length+=prog;
+		x = lerp(c_pos[0], c_pos[0]+ray[0], prog);
+		y = lerp(c_pos[1], c_pos[1]+ray[1], prog);
+		z = lerp(c_pos[2], c_pos[2]+ray[2], prog);
+		/* next time start from last position */
+		c_pos[0] =x;
+		c_pos[1] =y;
+		c_pos[2] =z;
 		id = get_id(region, x,y,z);
-		if (id)break;
+		printf("Got ID:%i\n", id);
+		printf("[%i]c_pos:%f %f %f\n", i, c_pos[0], c_pos[1], c_pos[2]);
+		if (id) break;
+		if (total_length > 4.0f) break;
 		}
+		l->b[0] = x;
+		l->b[1] = y;
+		l->b[2] = z;
 	return id;
 	}
 int
@@ -650,6 +712,18 @@ struct line line = {0,0,0, 0,0,10};
 	fp = fopen(filename, "rb");
 	if (!fp) return -1;
 	fread(region_map, 32*32, 4, fp);
+
+	for (i=0; i<32*32; i++) {
+		int x = i%32;
+		if (region_map[i]) printf("XX");
+		else printf("00");
+		if (x==31) puts("");
+		}
+
+	angle_between3(
+		((float[3]){0,1,0}),
+		((float[3]){1,0,0})
+		);
 
 	for (i=0; i<32*32; i++) {
 		unsigned char* ptr = (unsigned char*)(&region_map[i]);
@@ -682,8 +756,10 @@ unsigned int texid;
 glGenTextures(1, &texid);
 glBindTexture(GL_TEXTURE_2D, texid);
 glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1024, 1024, 0, GL_BGRA, GL_UNSIGNED_BYTE, pixels);
-glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
+glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_LOD, 4);
+glGenerateMipmap(GL_TEXTURE_2D);
 
 free(pixels);
 
@@ -702,14 +778,14 @@ glLightfv(GL_LIGHT0, GL_AMBIENT, color);
 glLightModelfv(GL_LIGHT_MODEL_AMBIENT, color);
 
 glMatrixMode(GL_PROJECTION);
-glFrustum(-1, 1, -1, 1, 0.7, 1000);
+glFrustum(-1, 1, -1, 1, 1, 10000);
 glMatrixMode(GL_MODELVIEW);
 
 glClearColor(0,0,1,0);
 
 float x=0;
 float y=100;
-float z=50;
+float z=50.5;
 
 struct geometry geometry;
 unsigned int gvbo;
@@ -746,12 +822,12 @@ float m[16]={0};
 						case SDLK_z:printf("%f %f %f\n",x,y,z); break;
 						case SDLK_SPACE:
 							{
-							line.a[0]=x+-m[2]*1; 
-							line.a[1]=y+-m[6]*1; 
-							line.a[2]=z+-m[10]*1;
-							line.b[0]=x+-m[2]*4; 
-							line.b[1]=y+-m[6]*4; 
-							line.b[2]=z+-m[10]*4;
+							line.a[0]=x; 
+							line.a[1]=y; 
+							line.a[2]=z;
+							line.b[0]=x+-m[2]*1; 
+							line.b[1]=y+-m[6]*1; 
+							line.b[2]=z+-m[10]*1;
 							unsigned char id = cast_ray(&line, &region);
 							printf("ID=%i\n", id);
 							break;
@@ -771,7 +847,6 @@ float m[16]={0};
 				}
 			}
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-#define SPEED 0.4
 
 	if (up) {	x-=m[2]*SPEED; y-=m[6]*SPEED; z-=m[10]*SPEED;}
 	if (down) {	x+=m[2]*SPEED; y+=m[6]*SPEED; z+=m[10]*SPEED;}
@@ -795,12 +870,19 @@ float m[16]={0};
 		glLoadIdentity();
 		glRotatef(rx, 1,0,0);
 		glRotatef(ry, 0,1,0);
-		glTranslatef(-x,-y,-z);
+		glTranslatef(-x*BLOCK_SIZE,-y*BLOCK_SIZE,-z*BLOCK_SIZE);
 		glGetFloatv(GL_MODELVIEW_MATRIX, m);
 		
 		glDrawArrays(GL_TRIANGLES, 0, geometry.count);
 glLineWidth(4);
 glPointSize(8);
+							line.a[0]=x; 
+							line.a[1]=y; 
+							line.a[2]=z;
+							line.b[0]=x+-m[2]*1; 
+							line.b[1]=y+-m[6]*1; 
+							line.b[2]=z+-m[10]*1;
+		unsigned char id = cast_ray(&line, &region);
 		draw_line(&line);
 		SDL_GL_SwapWindow(window);
 		}

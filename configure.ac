@@ -11,6 +11,10 @@ AC_CONFIG_FILES([Makefile])
 
 AC_CHECK_HEADERS([stdlib.h])
 
+AC_CHECK_LIB([m], [acos], [], [
+	AC_MSG_ERROR([Unable to find acos() function])
+	])
+
 PKG_CHECK_MODULES([GLEW], [glew])
 PKG_CHECK_MODULES([SDL2], [sdl2])
 PKG_CHECK_MODULES([ZLIB], [zlib])
