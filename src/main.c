@@ -602,7 +602,7 @@ angle_between3(float v1[3], float v2[3])
 	len2 = sqrt(len2);
 	float dot = v1[0]*v2[0] + v1[1]*v2[1] + v1[2]*v2[2];
 	float angle = dot/(len1*len2);
-	printf("Angle: %f\n", 180*(acos(angle)/M_PI));
+	//printf("Angle: %f\n", 180*(acos(angle)/M_PI));
 	return angle;
 	}
 #define lerp(a,b,t) a+((b-a)*t)
@@ -639,7 +639,15 @@ get_next_intersection(int axis, float ray[3], float pos[3])
 			next[axis]= -1;
 			}
 		float angle = angle_between3(ray, next);
+		if (adj==0) {
+			puts("adjacent ANGLE ZERO");
+			exit(-1);
+			}
 		length= adj/angle;
+		/*If angle is zero then axis is straight ahead
+		the length is just the adjacent side??
+		*/
+		if (angle==0) length=adj;
 		return length;
 	}
 unsigned char
@@ -655,11 +663,11 @@ cast_ray(struct line *l, struct region* region)
 	ray[0] = l->b[0] - l->a[0];
 	ray[1] = l->b[1] - l->a[1];
 	ray[2] = l->b[2] - l->a[2];
-	printf("ray %.2f %.2f %.2f", ray[0], ray[1], ray[2]);
+	//printf("ray %.2f %.2f %.2f", ray[0], ray[1], ray[2]);
 	float ray_length = sqrt(ray[0]*ray[0] + ray[1]*ray[1] + ray[2]*ray[2]);
-	printf("length %02f\n", ray_length);
+	//printf("length %02f\n", ray_length);
 
-		printf("initial c_pos:%f %f %f\n", c_pos[0], c_pos[1], c_pos[2]);
+		//printf("initial c_pos:%f %f %f\n", c_pos[0], c_pos[1], c_pos[2]);
 
 	int i;
 	while(1) {
@@ -668,15 +676,17 @@ cast_ray(struct line *l, struct region* region)
 		float toy = get_next_intersection(1, ray, c_pos);
 		float toz = get_next_intersection(2, ray, c_pos);
 		float prog=toz; /*progress*/
-		if (tox<0 || toy<0 || toz<0) exit(-1);
+		/*Dont let it go minus or minus infity, if it does then make
+			it far away
+		*/
+		if (tox<0) tox=100;
+		if (toy<0) toy=100;
+		if (toz<0) toz=100;
 		/*Choose shortest*/
 		if (toy<prog) prog=toy;
 		if (tox<prog) prog=tox;
-		if (prog == -INFINITY) {
-			puts("Equals INITITY");
-			exit(-1);
-			}
-		printf("prog=%f total=%f\n", prog, total_length);
+
+		//printf("prog=%f total=%f\n", prog, total_length);
 		total_length+=prog;
 		x = lerp(c_pos[0], c_pos[0]+ray[0], prog);
 		y = lerp(c_pos[1], c_pos[1]+ray[1], prog);
@@ -686,8 +696,8 @@ cast_ray(struct line *l, struct region* region)
 		c_pos[1] =y;
 		c_pos[2] =z;
 		id = get_id(region, x,y,z);
-		printf("Got ID:%i\n", id);
-		printf("[%i]c_pos:%f %f %f\n", i, c_pos[0], c_pos[1], c_pos[2]);
+		//printf("Got ID:%i\n", id);
+		//printf("[%i]c_pos:%f %f %f\n", i, c_pos[0], c_pos[1], c_pos[2]);
 		if (id) break;
 		if (total_length > 4.0f) break;
 		}
@@ -797,7 +807,11 @@ gvbo = geometry_to_vbo(&geometry);
 char up=0,down=0,left=0,right=0;
 char q_key=0;
 char e_key=0;
-
+/*
+Angle: 79.000013
+Angle: 90.000000
+Angle: 10.999987
+*/
 float rx=0;
 float ry=0;
 float rz=0;
@@ -883,7 +897,9 @@ glPointSize(8);
 							line.b[1]=y+-m[6]*1; 
 							line.b[2]=z+-m[10]*1;
 		unsigned char id = cast_ray(&line, &region);
+		glDisable(GL_DEPTH_TEST);
 		draw_line(&line);
+		glEnable(GL_DEPTH_TEST);
 		SDL_GL_SwapWindow(window);
 		}
 
