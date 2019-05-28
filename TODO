@@ -7,4 +7,5 @@
 [ ] Ray cast should maybe return coordinates?
 	then we can see from the current position and the
 	position hit which face of the block was hit
+[ ] When we rebuild a chunk we need to destroy the old vbo
 

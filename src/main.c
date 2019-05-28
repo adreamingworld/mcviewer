@@ -14,7 +14,7 @@
 unsigned int vao, vbo, vbo2;
 
 #define BLOCK_SIZE 16
-#define SPEED 0.2
+#define SPEED 2
 
 /*
 	below above left right front back
@@ -647,6 +647,7 @@ get_next_intersection(int axis, float ray[3], float pos[3])
 	float length;
 		float next[3];
 		float adj;
+		int neg=0;
 		/*init all*/
 		next[0]=0;
 		next[1]=0;
@@ -657,15 +658,17 @@ get_next_intersection(int axis, float ray[3], float pos[3])
 			next[axis]= 1;
 			}
 		else {
-			adj= (pos[axis] - floor(pos[axis]))+0.1;/*add 0.1 to push into next cube*/
+			adj= (pos[axis] - floor(pos[axis]));
 			next[axis]= -1;
+			neg=1;
 			}
 		float angle = angle_between3(ray, next);
 		length= adj/angle;
 		/*If angle is zero then axis is straight ahead
 		the length is just the adjacent side??
 		*/
-		if (angle==0) return adj;
+		if (angle==0) length=adj;
+		if (neg) length+=0.1;
 		return length;
 	}
 unsigned char
@@ -693,6 +696,7 @@ cast_ray(struct line *l, struct region* region, int *bx, int *by, int *bz)
 		float tox = get_next_intersection(0, ray, c_pos);
 		float toy = get_next_intersection(1, ray, c_pos);
 		float toz = get_next_intersection(2, ray, c_pos);
+
 		float prog=toz; /*progress*/
 		/*Dont let it go minus or minus infity, if it does then make
 			it far away
@@ -900,11 +904,7 @@ build_chunks(&region, chunks);
 char up=0,down=0,left=0,right=0;
 char q_key=0;
 char e_key=0;
-/*
-Angle: 79.000013
-Angle: 90.000000
-Angle: 10.999987
-*/
+
 float rx=0;
 float ry=0;
 float rz=0;
@@ -938,6 +938,7 @@ float m[16]={0};
 							line.b[2]=z+-m[10]*1;
 							unsigned char id = cast_ray(&line, &region, &bx,&by,&bz);
 							unsigned int chunk_id = set_id(&region, bx,by,bz, 0);
+							glDeleteBuffers(1, &chunks[chunk_id].vbo);
 							chunks[chunk_id].vbo = rebuild_chunk(&region, chunk_id);
 							printf("ID=%i; vbo:%i\n", id, chunks[chunk_id].vbo);
 							break;
@@ -993,16 +994,16 @@ float m[16]={0};
 		}
 glLineWidth(4);
 glPointSize(8);
-							line.a[0]=x; 
-							line.a[1]=y; 
-							line.a[2]=z;
-							line.b[0]=x+-m[2]*1; 
-							line.b[1]=y+-m[6]*1; 
-							line.b[2]=z+-m[10]*1;
-		unsigned char id = cast_ray(&line, &region, 0,0,0);
-		glDisable(GL_DEPTH_TEST);
+//							line.a[0]=x; 
+//							line.a[1]=y; 
+//							line.a[2]=z;
+//							line.b[0]=x+-m[2]*1; 
+//							line.b[1]=y+-m[6]*1; 
+//							line.b[2]=z+-m[10]*1;
+//		unsigned char id = cast_ray(&line, &region, 0,0,0);
+		//glDisable(GL_DEPTH_TEST);
 		draw_line(&line);
-		glEnable(GL_DEPTH_TEST);
+		//glEnable(GL_DEPTH_TEST);
 		SDL_GL_SwapWindow(window);
 		}
 
