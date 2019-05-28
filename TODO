@@ -1,0 +1,10 @@
+[ ] cast_ray still crashes, when we go tout of the map to the west
+	then head directly back in directly along the x axis
+	it seems to crash/hang
+
+[ ] When we change blocks we need to rebuild surrounding chunks
+	if changed block was on a boundary of a chunk!
+[ ] Ray cast should maybe return coordinates?
+	then we can see from the current position and the
+	position hit which face of the block was hit
+

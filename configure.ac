@@ -1,4 +1,4 @@
-AC_INIT([mcviewer], [1.0], [andy_ball7@hotmail.com], [], [adreamingworld.com])
+AC_INIT([mcviewer], [0.0.1], [andy_ball7@hotmail.com], [], [adreamingworld.com])
 #AC_CANONICAL_HOST
 #AC_CANONICAL_TARGET
 

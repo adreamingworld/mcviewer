@@ -287,6 +287,7 @@ struct geometry {
 	struct vertex *verts;
 	unsigned int capacity;
 	unsigned int count;
+	unsigned int vbo;
 	};
 
 float cube_verts[] = {
@@ -472,6 +473,27 @@ setup_sdl(char* title, int w, int h)
 	//glCreateVertexArrays(1, &vao);
 	}
 
+/*Set a block in the region
+	return the chunk index;
+*/
+unsigned int
+set_id(struct region* r, int bx,int by,int bz, unsigned char id)
+	{
+	int chunkx = bx/16;
+	int chunkz = bz/16;
+	int blockx = (int)bx%16;
+	int blockz = (int)bz%16;
+	int blocky = (int)by%16;
+	int isection = by/16;
+	struct chunk* chunk=0;
+
+	/*Get chunk*/
+	chunk = r->chunks[chunkx+chunkz*32];
+	if (!chunk) return 0;
+	chunk->sections[isection][blockx + (blockz*16) + (blocky*(16*16))] = id;
+	return chunkx+chunkz*32;
+	}
+
 char
 get_id(struct region* r, float x, float y, float z)
 	{
@@ -639,19 +661,15 @@ get_next_intersection(int axis, float ray[3], float pos[3])
 			next[axis]= -1;
 			}
 		float angle = angle_between3(ray, next);
-		if (adj==0) {
-			puts("adjacent ANGLE ZERO");
-			exit(-1);
-			}
 		length= adj/angle;
 		/*If angle is zero then axis is straight ahead
 		the length is just the adjacent side??
 		*/
-		if (angle==0) length=adj;
+		if (angle==0) return adj;
 		return length;
 	}
 unsigned char
-cast_ray(struct line *l, struct region* region)
+cast_ray(struct line *l, struct region* region, int *bx, int *by, int *bz)
 	{
 	unsigned char id;
 	float x,y,z;
@@ -704,7 +722,77 @@ cast_ray(struct line *l, struct region* region)
 		l->b[0] = x;
 		l->b[1] = y;
 		l->b[2] = z;
+	if (bx) *bx=x;
+	if (by) *by=y;
+	if (bz) *bz=z;
 	return id;
+	}
+void
+build_chunk(struct region* region, struct geometry* g, unsigned int chunk_id)
+	{
+	int j;
+	int i=chunk_id;
+
+		for (j=0; j<16*16*256;j++) {
+			int x= j%16;
+			int y= j/(16*16);
+			int z= (j%(16*16))/16;
+			x += (i%32)*16;
+			z += (i/32)*16;
+
+			/*Skip if chunk doesn't even exist*/
+			//if (!region->chunks[(x/16)+(z/16)*32]) continue;
+
+			unsigned char id = get_id(region, x,y, z);
+			if (id !=0) continue;
+
+			unsigned char below=0, above=0, left=0, right=0, front=0, back=0;
+			if (y>0) below = 	get_id(region, x,y-1,z);
+			if (y<255) above = 	get_id(region, x,y+1,z);
+			if (x>0) left = 	get_id(region, x-1,y,z);
+			if (x<511) right = 	get_id(region, x+1,y,z);
+			if (z<511) front = 	get_id(region, x,y,z+1);
+			if (z>0) back = 	get_id(region, x,y,z-1);
+
+			int nx = x*BLOCK_SIZE;
+			int ny = y*BLOCK_SIZE;
+			int nz = z*BLOCK_SIZE;
+
+			if (below) 	build_top(nx,ny-BLOCK_SIZE,nz, top_ints, 0,1,0, g, 	faces[below][0]);
+			if (above) 	build_top(nx,ny+BLOCK_SIZE,nz, bottom_ints, 0,-1,0, g, 	faces[above][1]);
+			if (left)	build_top(nx-BLOCK_SIZE,ny,nz, right_ints, 1,0,0, g, 	faces[left][2]);
+			if (right)	build_top(nx+BLOCK_SIZE,ny,nz, left_ints, -1,0,0, g, 	faces[right][3]);
+			if (front)	build_top(nx,ny,nz+BLOCK_SIZE, back_ints, 0,0,-1, g, 	faces[front][4]);
+			if (back)	build_top(nx,ny,nz-BLOCK_SIZE, front_ints, 0,0,1, g, 	faces[back][5]);
+			}
+	}
+
+unsigned int 
+rebuild_chunk(struct region* r, unsigned int id)
+	{
+	struct geometry g={0};
+	geometry_init(&g);
+	build_chunk(r, &g, id);
+	return geometry_to_vbo(&g);
+	}
+void
+build_chunks(struct region *region, struct geometry chunks[32*32])
+	{
+	int i,j;
+	struct geometry *g;
+
+	for (i=0; i<32*32; i++) {
+		g = &chunks[i];
+		geometry_init(g);
+		if (!region->chunks[i]) continue;
+		unsigned int cx = i%32;
+		unsigned int cz = i/32;
+		//if (cz>0) continue;
+		//if (cx>0) continue;
+		build_chunk(region, g, i);
+		chunks[i].vbo = geometry_to_vbo(g);
+		//printf("g count %i vbo=%i\n", g->count, chunks[i].vbo);
+		}
 	}
 int
 main(int argc, char *argv[])
@@ -800,10 +888,15 @@ float z=50.5;
 struct geometry geometry;
 unsigned int gvbo;
 geometry_init(&geometry);
-build_geometry(&geometry, &region);
+//build_geometry(&geometry, &region);
 printf("g count %i\n", geometry.count);
 
-gvbo = geometry_to_vbo(&geometry);
+struct geometry chunks[32*32] = {0};
+
+//gvbo = geometry_to_vbo(&geometry);
+
+build_chunks(&region, chunks);
+
 char up=0,down=0,left=0,right=0;
 char q_key=0;
 char e_key=0;
@@ -836,14 +929,17 @@ float m[16]={0};
 						case SDLK_z:printf("%f %f %f\n",x,y,z); break;
 						case SDLK_SPACE:
 							{
+							int bx,by,bz;
 							line.a[0]=x; 
 							line.a[1]=y; 
 							line.a[2]=z;
 							line.b[0]=x+-m[2]*1; 
 							line.b[1]=y+-m[6]*1; 
 							line.b[2]=z+-m[10]*1;
-							unsigned char id = cast_ray(&line, &region);
-							printf("ID=%i\n", id);
+							unsigned char id = cast_ray(&line, &region, &bx,&by,&bz);
+							unsigned int chunk_id = set_id(&region, bx,by,bz, 0);
+							chunks[chunk_id].vbo = rebuild_chunk(&region, chunk_id);
+							printf("ID=%i; vbo:%i\n", id, chunks[chunk_id].vbo);
 							break;
 							}
 						}
@@ -887,7 +983,14 @@ float m[16]={0};
 		glTranslatef(-x*BLOCK_SIZE,-y*BLOCK_SIZE,-z*BLOCK_SIZE);
 		glGetFloatv(GL_MODELVIEW_MATRIX, m);
 		
-		glDrawArrays(GL_TRIANGLES, 0, geometry.count);
+		//glDrawArrays(GL_TRIANGLES, 0, geometry.count);
+		for (i=0; i<32*32; i++) {
+			glBindBuffer(GL_ARRAY_BUFFER, chunks[i].vbo);
+			glVertexPointer(3, GL_FLOAT, sizeof(struct vertex), 0);
+			glNormalPointer(GL_FLOAT, sizeof(struct vertex), (const void*) (3*sizeof(float)) );
+			glTexCoordPointer(2, GL_FLOAT, sizeof(struct vertex), (const void*) (6*sizeof(float)) );
+			glDrawArrays(GL_TRIANGLES, 0, chunks[i].count);
+		}
 glLineWidth(4);
 glPointSize(8);
 							line.a[0]=x; 
@@ -896,7 +999,7 @@ glPointSize(8);
 							line.b[0]=x+-m[2]*1; 
 							line.b[1]=y+-m[6]*1; 
 							line.b[2]=z+-m[10]*1;
-		unsigned char id = cast_ray(&line, &region);
+		unsigned char id = cast_ray(&line, &region, 0,0,0);
 		glDisable(GL_DEPTH_TEST);
 		draw_line(&line);
 		glEnable(GL_DEPTH_TEST);

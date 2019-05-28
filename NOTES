@@ -1,4 +1,8 @@
 
+when you go out of the map to the west and re-enter head on
+along the x axis it will crash? Only when casting ray
+
+
 mca file
 --------
 4k chunk locations    3bytes = offset/4k chunks, 1byte=number of sectors
