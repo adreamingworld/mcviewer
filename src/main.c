@@ -494,7 +494,7 @@ set_id(struct region* r, int bx,int by,int bz, unsigned char id)
 	return chunkx+chunkz*32;
 	}
 
-char
+unsigned char
 get_id(struct region* r, float x, float y, float z)
 	{
 	unsigned char id=12;
@@ -505,6 +505,10 @@ get_id(struct region* r, float x, float y, float z)
 	int blocky = (int)y%16;
 	int isection = y/16;
 	struct chunk* chunk=0;
+
+	if (x<0) return 0;
+	if (y<0) return 0;
+	if (z<0) return 0;
 
 	/*Get chunk*/
 	chunk = r->chunks[chunkx+chunkz*32];
@@ -674,7 +678,7 @@ get_next_intersection(int axis, float ray[3], float pos[3])
 unsigned char
 cast_ray(struct line *l, struct region* region, int *bx, int *by, int *bz)
 	{
-	unsigned char id;
+	unsigned char id=0;
 	float x,y,z;
 	float total_length=0;
 	float ray[3];
@@ -693,22 +697,25 @@ cast_ray(struct line *l, struct region* region, int *bx, int *by, int *bz)
 	int i;
 	while(1) {
 		/*Get length to next X,Y,Z intersection*/
-		float tox = get_next_intersection(0, ray, c_pos);
-		float toy = get_next_intersection(1, ray, c_pos);
-		float toz = get_next_intersection(2, ray, c_pos);
+		float tox=4;
+		float toy=4;
+		float toz=4;
+		tox = get_next_intersection(0, ray, c_pos);
+		toy = get_next_intersection(1, ray, c_pos);
+		toz = get_next_intersection(2, ray, c_pos);
 
 		float prog=toz; /*progress*/
 		/*Dont let it go minus or minus infity, if it does then make
 			it far away
+			Zero is also not good, progress will not be made
 		*/
-		if (tox<0) tox=100;
-		if (toy<0) toy=100;
-		if (toz<0) toz=100;
+		if (tox<=0) tox=100;
+		if (toy<=0) toy=100;
+		if (toz<=0) toz=100;
 		/*Choose shortest*/
 		if (toy<prog) prog=toy;
 		if (tox<prog) prog=tox;
-
-		//printf("prog=%f total=%f\n", prog, total_length);
+		//printf("Loop prog=%f; %f %f %f\n", prog, tox, toy, toz);
 		total_length+=prog;
 		x = lerp(c_pos[0], c_pos[0]+ray[0], prog);
 		y = lerp(c_pos[1], c_pos[1]+ray[1], prog);
@@ -994,13 +1001,13 @@ float m[16]={0};
 		}
 glLineWidth(4);
 glPointSize(8);
-//							line.a[0]=x; 
-//							line.a[1]=y; 
-//							line.a[2]=z;
-//							line.b[0]=x+-m[2]*1; 
-//							line.b[1]=y+-m[6]*1; 
-//							line.b[2]=z+-m[10]*1;
-//		unsigned char id = cast_ray(&line, &region, 0,0,0);
+							line.a[0]=x; 
+							line.a[1]=y; 
+							line.a[2]=z;
+							line.b[0]=x+-m[2]*1; 
+							line.b[1]=y+-m[6]*1; 
+							line.b[2]=z+-m[10]*1;
+		unsigned char id = cast_ray(&line, &region, 0,0,0);
 		//glDisable(GL_DEPTH_TEST);
 		draw_line(&line);
 		//glEnable(GL_DEPTH_TEST);
