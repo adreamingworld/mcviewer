@@ -14,7 +14,7 @@
 unsigned int vao, vbo, vbo2;
 
 #define BLOCK_SIZE 16
-#define SPEED 2
+#define SPEED 0.2
 
 /*
 	below above left right front back
@@ -672,11 +672,11 @@ get_next_intersection(int axis, float ray[3], float pos[3])
 		the length is just the adjacent side??
 		*/
 		if (angle==0) length=adj;
-		if (neg) length+=0.1;
+		if (neg) length+=0.01;
 		return length;
 	}
 unsigned char
-cast_ray(struct line *l, struct region* region, int *bx, int *by, int *bz)
+cast_ray(struct line *l, struct region* region, float *bx, float *by, float *bz)
 	{
 	unsigned char id=0;
 	float x,y,z;
@@ -916,6 +916,8 @@ float rx=0;
 float ry=0;
 float rz=0;
 float m[16]={0};
+glLineWidth(4);
+glPointSize(8);
 	while(!quit) {
 		float fx, fy, fz;
 		fx = m[2];
@@ -936,7 +938,7 @@ float m[16]={0};
 						case SDLK_z:printf("%f %f %f\n",x,y,z); break;
 						case SDLK_SPACE:
 							{
-							int bx,by,bz;
+							float bx,by,bz;
 							line.a[0]=x; 
 							line.a[1]=y; 
 							line.a[2]=z;
@@ -944,10 +946,13 @@ float m[16]={0};
 							line.b[1]=y+-m[6]*1; 
 							line.b[2]=z+-m[10]*1;
 							unsigned char id = cast_ray(&line, &region, &bx,&by,&bz);
-							unsigned int chunk_id = set_id(&region, bx,by,bz, 0);
-							glDeleteBuffers(1, &chunks[chunk_id].vbo);
-							chunks[chunk_id].vbo = rebuild_chunk(&region, chunk_id);
-							printf("ID=%i; vbo:%i\n", id, chunks[chunk_id].vbo);
+							if (bx>0 && by>0 && bz>0) {
+								unsigned int chunk_id = set_id(&region, bx,by,bz, 0);
+								glDeleteBuffers(1, &chunks[chunk_id].vbo);
+								/*THIS IS A PROBLEM, WHAT IF chunk_id is invalid?*/
+								chunks[chunk_id].vbo = rebuild_chunk(&region, chunk_id);
+								printf("ID=%i; vbo:%i\n", id, chunks[chunk_id].vbo);
+							}
 							break;
 							}
 						}
@@ -999,18 +1004,27 @@ float m[16]={0};
 			glTexCoordPointer(2, GL_FLOAT, sizeof(struct vertex), (const void*) (6*sizeof(float)) );
 			glDrawArrays(GL_TRIANGLES, 0, chunks[i].count);
 		}
-glLineWidth(4);
-glPointSize(8);
-							line.a[0]=x; 
-							line.a[1]=y; 
-							line.a[2]=z;
-							line.b[0]=x+-m[2]*1; 
-							line.b[1]=y+-m[6]*1; 
-							line.b[2]=z+-m[10]*1;
-		unsigned char id = cast_ray(&line, &region, 0,0,0);
-		//glDisable(GL_DEPTH_TEST);
+		//					line.a[0]=x; 
+		//					line.a[1]=y; 
+		//					line.a[2]=z;
+		//					line.b[0]=x+-m[2]*1; 
+		//					line.b[1]=y+-m[6]*1; 
+		//					line.b[2]=z+-m[10]*1;
+		//unsigned char id = cast_ray(&line, &region, 0,0,0);
 		draw_line(&line);
-		//glEnable(GL_DEPTH_TEST);
+
+	glLoadIdentity();
+		glDisable(GL_DEPTH_TEST);
+		glDisable(GL_TEXTURE_2D);
+		glBegin(GL_POINTS);
+		glColor3f(1,1,1);
+		glVertex3f(0.02,0,	-1);
+		glVertex3f(-0.02,0,	-1);
+		glVertex3f(0,-0.02,	-1);
+		glVertex3f(0,0.02,	-1);
+		glEnd();
+		glEnable(GL_DEPTH_TEST);
+		glEnable(GL_TEXTURE_2D);
 		SDL_GL_SwapWindow(window);
 		}
 
