@@ -16,6 +16,30 @@ unsigned int vao, vbo, vbo2;
 #define BLOCK_SIZE 16
 #define SPEED 4
 
+/* scenic spot
+xyz:105.821602 78.412117 135.580490 - rot:38.000000 -3.750000 0.000000
+xyz: 49.916008 125.423233 80.084755 - rot:47.000000 113.250000 0.000000
+56.604927, 102.036270, 95.271812, 36.750000, 143.750000, 0.000000
+*/
+struct position {
+	float x,y,z;
+	float rx,ry,rz;
+	};
+
+struct position photo_position ={
+56.604927, 102.036270, 95.271812, 36.750000, 143.750000, 0.000000
+};
+
+void
+set_position(struct position* original, struct position* destination)
+	{
+	original->x = destination->x;
+	original->y = destination->y;
+	original->z = destination->z;
+	original->rx = destination->rx;
+	original->ry = destination->ry;
+	original->rz = destination->rz;
+	}
 /*
 	below above left right front back
 */
@@ -899,6 +923,7 @@ player_move(struct player* p, struct region* r)
 int
 main(int argc, char *argv[])
 	{
+	struct position cam_pos = {0};
 	char* filename;
 	FILE *fp;
 	int i;
@@ -978,9 +1003,7 @@ glFrustum(-1, 1, -1, 1, 1, 10000);
 glMatrixMode(GL_MODELVIEW);
 
 
-float x=0;
-float y=100;
-float z=50;
+set_position(&cam_pos, &photo_position);
 
 struct geometry geometry;
 unsigned int gvbo;
@@ -998,9 +1021,6 @@ char up=0,down=0,left=0,right=0;
 char q_key=0;
 char e_key=0;
 
-float rx=0;
-float ry=0;
-float rz=0;
 float m[16]={0};
 glLineWidth(4);
 glPointSize(8);
@@ -1025,7 +1045,20 @@ float camvz =0;
 						case SDLK_d: right=1; break;
 						case SDLK_q: q_key=1; break;
 						case SDLK_e: e_key=1; break;
-						case SDLK_z:printf("%f %f %f\n",x,y,z); break;
+						case SDLK_z:
+							/*xyz rotationxzy*/
+							printf("position: %f, %f, %f, %f, %f, %f\n",
+							cam_pos.x, cam_pos.y, cam_pos.z,
+							cam_pos.rx, cam_pos.ry, cam_pos.rz);
+							break;
+						case SDLK_p:
+							/*Stop any movement*/
+							camvx=0;
+							camvy=0;
+							camvz=0;
+							/*Set cam position*/
+							set_position(&cam_pos, &photo_position);
+							break;
 						case SDLK_UP:
 							player.vx+=0.2;
 							break;
@@ -1038,7 +1071,7 @@ float camvz =0;
 							float vx=-m[2]; 
 							float vy=-m[6]; 
 							float vz=-m[10]; 
-							unsigned char id = cast_ray(&region, 1, x,y,z, vx,vy,vz, &bx,&by,&bz);
+							unsigned char id = cast_ray(&region, 1, cam_pos.x,cam_pos.y,cam_pos.z, vx,vy,vz, &bx,&by,&bz);
 							printf("Result %f %f %f\n", bx,by,bz);
 							if (bx>0 && by>0 && bz>0 && id>0) {
 								unsigned int chunk_id = set_id(&region, bx,by,bz, 1);
@@ -1147,10 +1180,13 @@ float camvz =0;
 		uvz = camvz/vlen;
 	}
 
-	if (!get_id(&region, x+camvx+uvx, y+camvy+uvy, z+camvz+uvz)) {
-		x += camvx;
-		y += camvy;
-		z += camvz;
+	if (!get_id(&region, 
+			cam_pos.x+camvx+uvx,
+			cam_pos.y+camvy+uvy, 
+			cam_pos.z+camvz+uvz)) {
+		cam_pos.x += camvx;
+		cam_pos.y += camvy;
+		cam_pos.z += camvz;
 		} else {camvx=camvy=camvz=0;}
 
 
@@ -1160,16 +1196,19 @@ float camvz =0;
 		if (ret & SDL_BUTTON(SDL_BUTTON_LEFT)) mleft = 1;
 
 		if (mx && mleft) {
-			ry += mx/4.0;
+			cam_pos.ry += mx/4.0;
 		}
 		if (my && mleft) {
-			rx += my/4.0;
+			cam_pos.rx += my/4.0;
 		}
 
 		glLoadIdentity();
-		glRotatef(rx, 1,0,0);
-		glRotatef(ry, 0,1,0);
-		glTranslatef(-x*BLOCK_SIZE,-y*BLOCK_SIZE,-z*BLOCK_SIZE);
+		glRotatef(cam_pos.rx, 1,0,0);
+		glRotatef(cam_pos.ry, 0,1,0);
+		glTranslatef(
+			-cam_pos.x*BLOCK_SIZE,
+			-cam_pos.y*BLOCK_SIZE,
+			-cam_pos.z*BLOCK_SIZE);
 		glGetFloatv(GL_MODELVIEW_MATRIX, m);
 		
 		//glDrawArrays(GL_TRIANGLES, 0, geometry.count);
