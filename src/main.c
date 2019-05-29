@@ -14,7 +14,7 @@
 unsigned int vao, vbo, vbo2;
 
 #define BLOCK_SIZE 16
-#define SPEED 0.2
+#define SPEED 4
 
 /*
 	below above left right front back
@@ -309,19 +309,11 @@ int bottom_ints[] = {3,7,6, 3,6,2};
 int left_ints[] = {4,7,3, 4,3,0};
 int right_ints[] = {1,2,6, 1,6,5};
 
-/* 16*16*16 blocks */
-struct section {
-	unsigned char blocks[16*16*16];
-	unsigned char y;
-	};
-
 /* 16 vertically stacked sections*/
 struct chunk {
 	unsigned char x;
 	unsigned char z;
-//	struct section* sections[16];
 	unsigned char sections[16][16*16*16];
-	unsigned char map[16]; /* which actually hold information*/
 	};
 
 /* 32*32 chunks */
@@ -424,7 +416,6 @@ void
 build_top(float x, float y, float z, int inds[6], float nx, float ny, float nz, struct geometry *g, char id)
 	{
 	int i;
-	//id = 3;
 	int uindex[] = {0,0,1, 0,1,1};
 	int vindex[] = {0,1,1, 0,1,0};
 	float tu = (1.0/64);
@@ -471,6 +462,21 @@ setup_sdl(char* title, int w, int h)
 	glewInit();
 	/*VAO*/
 	//glCreateVertexArrays(1, &vao);
+
+	glEnable(GL_TEXTURE_2D);
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_LIGHTING);
+	glEnable(GL_LIGHT0);
+	glEnable(GL_LIGHT1);
+	glEnable(GL_LIGHT2);
+	glEnable(GL_CULL_FACE);
+
+	float dir[] = {0,0.7,0.4,0};
+	float color[] = {1,1,1,1};
+	glLightfv(GL_LIGHT0, GL_POSITION, dir);
+	glLightfv(GL_LIGHT0, GL_AMBIENT, color);
+	glLightModelfv(GL_LIGHT_MODEL_AMBIENT, color);
+	//glClearColor(0,0,1,0);
 	}
 
 /*Set a block in the region
@@ -519,47 +525,6 @@ get_id(struct region* r, float x, float y, float z)
 	return id;
 	}
 
-void
-build_region(struct region* region, struct geometry* g)
-	{
-	int i;
-	for (i=0; i<512*512*256; i++) {
-		int x= i%512;
-		int y= i/(512*512);
-		int z= (i%(512*512))/512;
-
-
-	/*Skip if chunk doesn't even exist*/
-	if (!region->chunks[(x/16)+(z/16)*32]) continue;
-
-		unsigned char id = get_id(region, x,y, z);
-		if (id !=0) continue;
-
-		unsigned char below=0, above=0, left=0, right=0, front=0, back=0;
-		if (y>0) below = 	get_id(region, x,y-1,z);
-		if (y<255) above = 	get_id(region, x,y+1,z);
-		if (x>0) left = 	get_id(region, x-1,y,z);
-		if (x<511) right = 	get_id(region, x+1,y,z);
-		if (z<511) front = 	get_id(region, x,y,z+1);
-		if (z>0) back = 	get_id(region, x,y,z-1);
-
-		int nx = x*BLOCK_SIZE;
-		int ny = y*BLOCK_SIZE;
-		int nz = z*BLOCK_SIZE;
-
-		if (below) 	build_top(nx,ny-BLOCK_SIZE,nz, top_ints, 0,1,0, g, 	faces[below][0]);
-		if (above) 	build_top(nx,ny+BLOCK_SIZE,nz, bottom_ints, 0,-1,0, g, 	faces[above][1]);
-		if (left)	build_top(nx-BLOCK_SIZE,ny,nz, right_ints, 1,0,0, g, 	faces[left][2]);
-		if (right)	build_top(nx+BLOCK_SIZE,ny,nz, left_ints, -1,0,0, g, 	faces[right][3]);
-		if (front)	build_top(nx,ny,nz+BLOCK_SIZE, back_ints, 0,0,-1, g, 	faces[front][4]);
-		if (back)	build_top(nx,ny,nz-BLOCK_SIZE, front_ints, 0,0,1, g, 	faces[back][5]);
-		}
-	}
-void
-build_geometry(struct geometry* g, struct region* region)
-	{
-	build_region(region, g);
-	}
 
 unsigned int
 geometry_to_vbo(struct geometry* g)
@@ -614,6 +579,7 @@ draw_line(struct line *l)
 	}
 /*
 We don't really need the square root to get the length?
+As long as unit vectors?
 we want the angle, not the actual length
 so the proportion is important not the exact length?
 */
@@ -623,9 +589,9 @@ angle_between3(float v1[3], float v2[3])
 	{
 	/*ANGLE BETWEEN TWO VECTORS*/
 	float len1 = v1[0]*v1[0] + v1[1]*v1[1] + v1[2]*v1[2];
-	len1 = sqrt(len1);
+	//len1 = sqrt(len1);
 	float len2 = v2[0]*v2[0] + v2[1]*v2[1] + v2[2]*v2[2];
-	len2 = sqrt(len2);
+	//len2 = sqrt(len2);
 	float dot = v1[0]*v2[0] + v1[1]*v2[1] + v1[2]*v2[2];
 	float angle = dot/(len1*len2);
 	//printf("Angle: %f\n", 180*(acos(angle)/M_PI));
@@ -675,8 +641,46 @@ get_next_intersection(int axis, float ray[3], float pos[3])
 		if (neg) length+=0.01;
 		return length;
 	}
+
+/* should get previous block to return one infront
+	this way we can place blocks
+*/
 unsigned char
-cast_ray(struct line *l, struct region* region, float *bx, float *by, float *bz)
+cast_ray(struct region* region, int previous, float x, float y, float z, 
+	float vx, float vy, float vz, float *bx, float *by, float *bz)
+	{
+	float max = 4.0f;
+	float m = 32;
+	unsigned char id;
+	float nx,ny,nz;
+	float px,py,pz;
+	int i;
+
+	for (i=0; i<max*m ; i++) {
+		*bx= x;
+		*by= y;
+		*bz= z;
+		id = get_id(region, x,y,z);
+		if (id) {
+			if (previous) {
+			*bx=px; *by=py; *bz=pz;
+			}
+			return id;
+			}
+		px = x; py = y; pz = z;
+		x += vx/m;
+		y += vy/m;
+		z += vz/m;
+		}
+	return 0;
+	
+
+	}
+/*Keep THIS!!! - Slow but it is the most accurate?, With this we
+know which face is hit
+*/
+unsigned char
+old_cast_ray(struct line *l, struct region* region, float *bx, float *by, float *bz)
 	{
 	unsigned char id=0;
 	float x,y,z;
@@ -778,13 +782,15 @@ build_chunk(struct region* region, struct geometry* g, unsigned int chunk_id)
 			}
 	}
 
-unsigned int 
-rebuild_chunk(struct region* r, unsigned int id)
+void
+rebuild_chunk(struct region* r, struct geometry chunks[32*32], unsigned int id)
 	{
-	struct geometry g={0};
-	geometry_init(&g);
-	build_chunk(r, &g, id);
-	return geometry_to_vbo(&g);
+	struct geometry *g;
+	g = &chunks[id];
+	free(g->verts);
+	geometry_init(g);
+	build_chunk(r, g, id);
+	chunks[id].vbo = geometry_to_vbo(g);
 	}
 void
 build_chunks(struct region *region, struct geometry chunks[32*32])
@@ -805,6 +811,91 @@ build_chunks(struct region *region, struct geometry chunks[32*32])
 		//printf("g count %i vbo=%i\n", g->count, chunks[i].vbo);
 		}
 	}
+
+struct player {
+	float x,y,z;
+	float vx,vy,vz;
+	float ry;
+	};
+
+float pverts[]={
+	0,0,0, 		0,-32,0,	16,-32,0,	16,0,0,
+	/* Back */
+	16,0,-16, 	16,-32,-16, 	0,-32,-16, 	0,0,-16,
+	/* Left */
+	0,0,0,		0,0,-16,	 0,-32,-16,	0,-32,0,
+	/* Right */
+	16,0,0,		16,-32,0,	16,-32,-16,	16,0,-16,
+	/*Top*/
+	0,0,0, 		16,0,0, 	16,0,-16, 	0,0,-16,
+	/*Bottom*/
+	0,-32,0, 	0,-32,-16, 	16,-32,-16,	16,-32,0,
+	};
+
+void
+render_player(struct player* p)
+	{
+	glTranslatef(p->x*BLOCK_SIZE, p->y*BLOCK_SIZE, p->z*BLOCK_SIZE);
+
+	glBegin(GL_QUADS);
+	glNormal3f(0,0,-1);
+	glVertex3fv(&pverts[0]);
+	glVertex3fv(&pverts[1*3]);
+	glVertex3fv(&pverts[2*3]);
+	glVertex3fv(&pverts[3*3]);
+
+	glNormal3f(0,0,1);
+	glVertex3fv(&pverts[4*3]);
+	glVertex3fv(&pverts[5*3]);
+	glVertex3fv(&pverts[6*3]);
+	glVertex3fv(&pverts[7*3]);
+
+	glNormal3f(-1,0,0);
+	glVertex3fv(&pverts[8*3]);
+	glVertex3fv(&pverts[9*3]);
+	glVertex3fv(&pverts[10*3]);
+	glVertex3fv(&pverts[11*3]);
+	
+	glNormal3f(1,0,0);
+	glVertex3fv(&pverts[12*3]);
+	glVertex3fv(&pverts[13*3]);
+	glVertex3fv(&pverts[14*3]);
+	glVertex3fv(&pverts[15*3]);
+
+	glNormal3f(0,+1,0);
+	glVertex3fv(&pverts[16*3]);
+	glVertex3fv(&pverts[17*3]);
+	glVertex3fv(&pverts[18*3]);
+	glVertex3fv(&pverts[19*3]);
+
+	glNormal3f(0,-1,0);
+	glVertex3fv(&pverts[20*3]);
+	glVertex3fv(&pverts[21*3]);
+	glVertex3fv(&pverts[22*3]);
+	glVertex3fv(&pverts[23*3]);
+
+	glEnd();
+	}
+
+void
+player_move(struct player* p, struct region* r)
+	{
+	float x,y,z;
+	float btmx = p->vx + p->x + 0.5;
+	float btmy = p->vy + p->y -2;
+	float btmz = p->vz + p->z - 0.5;
+	float frnx = p->vx + p->x + 0.7;
+	float frny = p->vy + p->y -1.5;
+	float frnz = p->vz + p->z - 0.5;
+
+	unsigned char btm,frn;
+	btm = get_id(r, btmx, btmy, btmz);
+	frn = get_id(r, frnx, frny, frnz);
+	if (!btm) p->y += p->vy;
+	if (!frn) p->x += p->vx;
+	p->z += p->vz;
+	}
+
 int
 main(int argc, char *argv[])
 	{
@@ -812,6 +903,14 @@ main(int argc, char *argv[])
 	FILE *fp;
 	int i;
 	int region_map[0x2000];
+	struct player player={0};
+
+	player.x = 0;
+	player.y = 100;
+	player.z = 41;
+
+	player.vy = -0.1;
+
 	puts(PACKAGE_STRING);
 	struct region region = {0};
 struct line line = {0,0,0, 0,0,10};
@@ -836,6 +935,7 @@ struct line line = {0,0,0, 0,0,10};
 
 	for (i=0; i<32*32; i++) {
 		unsigned char* ptr = (unsigned char*)(&region_map[i]);
+		region.chunks[i] = 0;
 		if (region_map[i] == 0) continue;
 		unsigned int offset = (ptr[0]<<16 | ptr[1]<<8 | ptr[2]);
 		unsigned char sector = ptr[3];
@@ -872,29 +972,15 @@ glGenerateMipmap(GL_TEXTURE_2D);
 
 free(pixels);
 
-glEnable(GL_TEXTURE_2D);
-glEnable(GL_DEPTH_TEST);
-glEnable(GL_LIGHTING);
-glEnable(GL_LIGHT0);
-glEnable(GL_LIGHT1);
-glEnable(GL_LIGHT2);
-glEnable(GL_CULL_FACE);
-
-float dir[] = {0,0.7,0.4,0};
-float color[] = {1,1,1,1};
-glLightfv(GL_LIGHT0, GL_POSITION, dir);
-glLightfv(GL_LIGHT0, GL_AMBIENT, color);
-glLightModelfv(GL_LIGHT_MODEL_AMBIENT, color);
 
 glMatrixMode(GL_PROJECTION);
 glFrustum(-1, 1, -1, 1, 1, 10000);
 glMatrixMode(GL_MODELVIEW);
 
-glClearColor(0,0,1,0);
 
 float x=0;
 float y=100;
-float z=50.5;
+float z=50;
 
 struct geometry geometry;
 unsigned int gvbo;
@@ -918,6 +1004,10 @@ float rz=0;
 float m[16]={0};
 glLineWidth(4);
 glPointSize(8);
+
+float camvx =0;
+float camvy =0;
+float camvz =0;
 	while(!quit) {
 		float fx, fy, fz;
 		fx = m[2];
@@ -936,21 +1026,31 @@ glPointSize(8);
 						case SDLK_q: q_key=1; break;
 						case SDLK_e: e_key=1; break;
 						case SDLK_z:printf("%f %f %f\n",x,y,z); break;
+						case SDLK_UP:
+							player.vx+=0.2;
+							break;
+						case SDLK_DOWN:
+							player.vx-=0.2;
+							break;
 						case SDLK_SPACE:
 							{
 							float bx,by,bz;
-							line.a[0]=x; 
-							line.a[1]=y; 
-							line.a[2]=z;
-							line.b[0]=x+-m[2]*1; 
-							line.b[1]=y+-m[6]*1; 
-							line.b[2]=z+-m[10]*1;
-							unsigned char id = cast_ray(&line, &region, &bx,&by,&bz);
-							if (bx>0 && by>0 && bz>0) {
-								unsigned int chunk_id = set_id(&region, bx,by,bz, 0);
+							float vx=-m[2]; 
+							float vy=-m[6]; 
+							float vz=-m[10]; 
+							unsigned char id = cast_ray(&region, 1, x,y,z, vx,vy,vz, &bx,&by,&bz);
+							printf("Result %f %f %f\n", bx,by,bz);
+							if (bx>0 && by>0 && bz>0 && id>0) {
+								unsigned int chunk_id = set_id(&region, bx,by,bz, 1);
+								int cx = chunk_id%32;
+								int cz = chunk_id/32;
 								glDeleteBuffers(1, &chunks[chunk_id].vbo);
 								/*THIS IS A PROBLEM, WHAT IF chunk_id is invalid?*/
-								chunks[chunk_id].vbo = rebuild_chunk(&region, chunk_id);
+								rebuild_chunk(&region, chunks, chunk_id);
+								if (cx>0) rebuild_chunk(&region, chunks, chunk_id-1);
+								if (cx<32) rebuild_chunk(&region, chunks, chunk_id+1);
+								if (cz>0) rebuild_chunk(&region, chunks, chunk_id-32);
+								if (cz<32) rebuild_chunk(&region, chunks, chunk_id+32);
 								printf("ID=%i; vbo:%i\n", id, chunks[chunk_id].vbo);
 							}
 							break;
@@ -970,13 +1070,89 @@ glPointSize(8);
 				}
 			}
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+#define LERP_FACTOR 0.02
+	if (up) {
+		camvx = lerp(camvx, -m[2]*SPEED, LERP_FACTOR); 
+		camvy = lerp(camvy, -m[6]*SPEED, LERP_FACTOR); 
+		camvz = lerp(camvz, -m[10]*SPEED, LERP_FACTOR); 
+		}
+	else {
+		camvx = lerp(camvx, 0, LERP_FACTOR); 
+		camvy = lerp(camvy, 0, LERP_FACTOR); 
+		camvz = lerp(camvz, 0, LERP_FACTOR); 
+		}
+	if (down) {
+		camvx = lerp(camvx, m[2]*SPEED, LERP_FACTOR); 
+		camvy = lerp(camvy, m[6]*SPEED, LERP_FACTOR); 
+		camvz = lerp(camvz, m[10]*SPEED, LERP_FACTOR); 
+		}
+	else {
+		camvx = lerp(camvx, 0, LERP_FACTOR); 
+		camvy = lerp(camvy, 0, LERP_FACTOR); 
+		camvz = lerp(camvz, 0, LERP_FACTOR); 
+		}
 
-	if (up) {	x-=m[2]*SPEED; y-=m[6]*SPEED; z-=m[10]*SPEED;}
-	if (down) {	x+=m[2]*SPEED; y+=m[6]*SPEED; z+=m[10]*SPEED;}
-	if (left) {	x-=m[0]*SPEED; y-=m[4]*SPEED; z-=m[8]*SPEED;}
-	if (right) {	x+=m[0]*SPEED; y+=m[4]*SPEED; z+=m[8]*SPEED;}
-	if (q_key) {y-=1*SPEED;}
-	if (e_key) {y+=1*SPEED;}
+	if (left) {
+		camvx = lerp(camvx, -m[0]*SPEED, LERP_FACTOR); 
+		camvy = lerp(camvy, -m[4]*SPEED, LERP_FACTOR); 
+		camvz = lerp(camvz, -m[8]*SPEED, LERP_FACTOR); 
+		}
+	else {
+		camvx = lerp(camvx, 0, LERP_FACTOR); 
+		camvy = lerp(camvy, 0, LERP_FACTOR); 
+		camvz = lerp(camvz, 0, LERP_FACTOR); 
+		}
+
+	if (right) {
+		camvx = lerp(camvx, m[0]*SPEED, LERP_FACTOR); 
+		camvy = lerp(camvy, m[4]*SPEED, LERP_FACTOR); 
+		camvz = lerp(camvz, m[8]*SPEED, LERP_FACTOR); 
+		}
+	else {
+		camvx = lerp(camvx, 0, LERP_FACTOR); 
+		camvy = lerp(camvy, 0, LERP_FACTOR); 
+		camvz = lerp(camvz, 0, LERP_FACTOR); 
+		}
+	if (q_key) {
+		camvx = lerp(camvx, m[1]*SPEED, LERP_FACTOR); 
+		camvy = lerp(camvy, m[5]*SPEED, LERP_FACTOR); 
+		camvz = lerp(camvz, m[9]*SPEED, LERP_FACTOR); 
+		}
+	else {
+		camvx = lerp(camvx, 0, LERP_FACTOR); 
+		camvy = lerp(camvy, 0, LERP_FACTOR); 
+		camvz = lerp(camvz, 0, LERP_FACTOR); 
+		}
+	if (e_key) {
+		camvx = lerp(camvx, -m[1]*SPEED, LERP_FACTOR); 
+		camvy = lerp(camvy, -m[5]*SPEED, LERP_FACTOR); 
+		camvz = lerp(camvz, -m[9]*SPEED, LERP_FACTOR); 
+		}
+	else {
+		camvx = lerp(camvx, 0, LERP_FACTOR); 
+		camvy = lerp(camvy, 0, LERP_FACTOR); 
+		camvz = lerp(camvz, 0, LERP_FACTOR); 
+		}
+	/*add movement VECTOr not VIEW vector */
+	float uvx, uvy, uvz;
+	float vlen = camvx*camvx + camvy*camvy + camvz*camvz;
+	if (vlen == 0) {
+		vlen=0;
+		uvx=uvy=uvz=0;
+		}
+	else {
+		vlen = sqrt(vlen);
+		uvx = camvx/vlen;
+		uvy = camvy/vlen;
+		uvz = camvz/vlen;
+	}
+
+	if (!get_id(&region, x+camvx+uvx, y+camvy+uvy, z+camvz+uvz)) {
+		x += camvx;
+		y += camvy;
+		z += camvz;
+		} else {camvx=camvy=camvz=0;}
+
 
 		int mx,my;
 		int mleft = 0;
@@ -1004,20 +1180,16 @@ glPointSize(8);
 			glTexCoordPointer(2, GL_FLOAT, sizeof(struct vertex), (const void*) (6*sizeof(float)) );
 			glDrawArrays(GL_TRIANGLES, 0, chunks[i].count);
 		}
-		//					line.a[0]=x; 
-		//					line.a[1]=y; 
-		//					line.a[2]=z;
-		//					line.b[0]=x+-m[2]*1; 
-		//					line.b[1]=y+-m[6]*1; 
-		//					line.b[2]=z+-m[10]*1;
-		//unsigned char id = cast_ray(&line, &region, 0,0,0);
-		draw_line(&line);
+		render_player(&player);
+
+		player_move(&player, &region);
 
 	glLoadIdentity();
 		glDisable(GL_DEPTH_TEST);
 		glDisable(GL_TEXTURE_2D);
-		glBegin(GL_POINTS);
+		glBegin(GL_LINES);
 		glColor3f(1,1,1);
+		glNormal3f(0,0,1);
 		glVertex3f(0.02,0,	-1);
 		glVertex3f(-0.02,0,	-1);
 		glVertex3f(0,-0.02,	-1);
