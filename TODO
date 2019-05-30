@@ -2,6 +2,9 @@
 	https://0fps.net/2013/07/03/ambient-occlusion-for-minecraft-like-worlds/
 	use color attribute to shade. turn lighting off?
 	or it can complement the lighting
+	My ambient occlusion only takes into account the vertex
+	Infact depending on the face the blocks needed to
+	be checked also change!!!! Think about it
 
 [ ] When we change blocks we need to rebuild surrounding chunks
 	if changed block was on a boundary of a chunk!

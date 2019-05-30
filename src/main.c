@@ -14,7 +14,9 @@
 unsigned int vao, vbo, vbo2;
 
 #define BLOCK_SIZE 16
-#define SPEED 4
+#define SPEED 2
+int lighting_enabled = 1;
+int textures_enabled = 1;
 
 /* scenic spot
 xyz:105.821602 78.412117 135.580490 - rot:38.000000 -3.750000 0.000000
@@ -305,6 +307,7 @@ struct vertex {
 	float x,y,z;
 	float nx,ny,nz;
 	float u,v;
+	float r,g,b;
 	};
 
 struct geometry {
@@ -325,6 +328,35 @@ float cube_verts[] = {
 	BLOCK_SIZE*1,  		BLOCK_SIZE*0,  		BLOCK_SIZE*0,
 	BLOCK_SIZE*0, 		BLOCK_SIZE*0,  		BLOCK_SIZE*0,
 	};
+/**
+Vertex indices noted on a 3d representation.
+(+Y)		0----------1
+  |		|\        /|
+  |   (-Z)	| 4------5 |
+  |   /		| |      | |
+  |  /		| |      | |
+  | /		| 7------6 |
+  |/		|/        \|
+  +--------(+X)	3----------2
+
+*/
+
+/* Relative coordinates of the blocks
+	to check for a given vertex.
+	vertex index matches front_ints etc
+	for convenience.
+*/
+int lighting_check_ints[] = {
+		0,1,1,		-1,1,1,		-1,1,0, /*vertex 0*/
+		0,1,1,		1,1,1,		1,1,0, /*vertex 1*/
+		0,-1,1,		1,-1,1,		1,-1,0, /*vertex 2*/
+		0,-1,1,		-1,-1,1,	-1,-1,0, /*vertex 3*/
+
+		0,1,-1,		-1,1,-1,	-1,1,0, /*vertex 4*/
+		0,1,-1,		1,1,-1,		1,1,0, /*vertex 5*/
+		0,-1,-1,	1,-1,-1,	1,-1,0, /*vertex 6*/
+		0,-1,-1,	-1,-1,-1,	-1,-1,0, /*vertex 7*/
+		};
 
 int front_ints[] = {0,3,2, 0,2,1};
 int back_ints[] = {5,6,7, 5,7,4};
@@ -436,15 +468,59 @@ load_chunk(FILE *fp, struct chunk *chunk)
 	free(nbt_data);
 	}
 
+unsigned char
+get_id(struct region* r, float x, float y, float z)
+	{
+	unsigned char id=12;
+	int chunkx = x/16;
+	int chunkz = z/16;
+	int blockx = (int)x%16;
+	int blockz = (int)z%16;
+	int blocky = (int)y%16;
+	int isection = y/16;
+	struct chunk* chunk=0;
+
+	if (x<0) return 0;
+	if (y<0) return 0;
+	if (z<0) return 0;
+if (chunkx>31 || chunkz>31) return 0;
+	/*Get chunk*/
+	chunk = r->chunks[chunkx+chunkz*32];
+	if (!chunk) return 0;
+	id = chunk->sections[isection][blockx + (blockz*16) + (blocky*(16*16))];
+
+
+	return id;
+	}
+
 void
-build_top(float x, float y, float z, int inds[6], float nx, float ny, float nz, struct geometry *g, char id)
+build_top(struct region* r, float x, float y, float z, int inds[6], float nx, float ny, float nz, struct geometry *g, char id)
 	{
 	int i;
 	int uindex[] = {0,0,1, 0,1,1};
 	int vindex[] = {0,1,1, 0,1,0};
 	float tu = (1.0/64);
+	
+	float fx,fy,fz;
+	fx = x/BLOCK_SIZE;
+	fy = y/BLOCK_SIZE;
+	fz = z/BLOCK_SIZE;
+
 	for (i=0; i<6; i++) {
+		float light;
 		struct vertex v;
+		int *fs;
+		unsigned char side1, side2, corner;
+		fs = &lighting_check_ints[inds[i]*9];
+		side1 = get_id(r, fx+fs[0],fy+fs[1],fz+fs[2]);
+		side2 = get_id(r, fx+fs[3],fy+fs[4],fz+fs[5]);
+		corner = get_id(r, fx+fs[6],fy+fs[7],fz+fs[8]);
+		light = side1 ? 1:0;
+		light += side2 ? 1:0;
+		light += corner ? 1:0;
+		light = 0.2 + ((3.0-light)/(3.0))*0.8;
+		//light = (3.0-light)/3;
+
 		v.x = cube_verts[inds[i]*3 + 0] + x;
 		v.y = cube_verts[inds[i]*3 + 1] + y;
 		v.z = cube_verts[inds[i]*3 + 2] + z;
@@ -453,6 +529,10 @@ build_top(float x, float y, float z, int inds[6], float nx, float ny, float nz, 
 		v.nz = nz;
 		v.u = (tu * (id%64)) + (tu*uindex[i]);
 		v.v = (tu * (id/64)) + (tu*vindex[i]);
+		/* get 2 sides and corner block for lighting */
+		v.r = light;
+		v.g = light;
+		v.b = light; 
 		geometry_add(g, &v);
 		}
 	}
@@ -489,18 +569,17 @@ setup_sdl(char* title, int w, int h)
 
 	glEnable(GL_TEXTURE_2D);
 	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_LIGHTING);
+	//glEnable(GL_LIGHTING);
 	glEnable(GL_LIGHT0);
 	glEnable(GL_LIGHT1);
 	glEnable(GL_LIGHT2);
 	glEnable(GL_CULL_FACE);
-
 	float dir[] = {0,0.7,0.4,0};
 	float color[] = {1,1,1,1};
 	glLightfv(GL_LIGHT0, GL_POSITION, dir);
 	glLightfv(GL_LIGHT0, GL_AMBIENT, color);
 	glLightModelfv(GL_LIGHT_MODEL_AMBIENT, color);
-	//glClearColor(0,0,1,0);
+	glClearColor(0,0,1,0);
 	}
 
 /*Set a block in the region
@@ -524,31 +603,6 @@ set_id(struct region* r, int bx,int by,int bz, unsigned char id)
 	return chunkx+chunkz*32;
 	}
 
-unsigned char
-get_id(struct region* r, float x, float y, float z)
-	{
-	unsigned char id=12;
-	int chunkx = x/16;
-	int chunkz = z/16;
-	int blockx = (int)x%16;
-	int blockz = (int)z%16;
-	int blocky = (int)y%16;
-	int isection = y/16;
-	struct chunk* chunk=0;
-
-	if (x<0) return 0;
-	if (y<0) return 0;
-	if (z<0) return 0;
-
-	/*Get chunk*/
-	chunk = r->chunks[chunkx+chunkz*32];
-	if (!chunk) return 0;
-	id = chunk->sections[isection][blockx + (blockz*16) + (blocky*(16*16))];
-
-
-	return id;
-	}
-
 
 unsigned int
 geometry_to_vbo(struct geometry* g)
@@ -557,13 +611,15 @@ geometry_to_vbo(struct geometry* g)
 	glGenBuffers(1, &vbo);
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glEnableClientState(GL_NORMAL_ARRAY);
-	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+	if (textures_enabled) glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+	if (lighting_enabled)glEnableClientState(GL_COLOR_ARRAY);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(struct vertex)*g->count, g->verts, GL_STATIC_DRAW);
 
 	glVertexPointer(3, GL_FLOAT, sizeof(struct vertex), 0);
 	glNormalPointer(GL_FLOAT, sizeof(struct vertex), (const void*) (3*sizeof(float)) );
 	glTexCoordPointer(2, GL_FLOAT, sizeof(struct vertex), (const void*) (6*sizeof(float)) );
+	glColorPointer(3, GL_FLOAT, sizeof(struct vertex), (const void*) (8*sizeof(float)) );
 
 	return vbo;
 	}
@@ -585,7 +641,7 @@ draw_line(struct line *l)
 	b[1] = l->b[1]*BLOCK_SIZE;
 	b[2] = l->b[2]*BLOCK_SIZE;
 	glDisable(GL_TEXTURE_2D);
-	glDisable(GL_LIGHTING);
+	//glDisable(GL_LIGHTING);
 		glBegin(GL_LINES);
 		glColor3f(0.5, 0.5, 0.5);
 		glVertex3fv(a);
@@ -598,7 +654,7 @@ draw_line(struct line *l)
 		glVertex3fv(b);
 		glEnd();
 	glEnable(GL_TEXTURE_2D);
-	glEnable(GL_LIGHTING);
+	//glEnable(GL_LIGHTING);
 		glColor3f(1,1,1);
 	}
 /*
@@ -783,7 +839,7 @@ build_chunk(struct region* region, struct geometry* g, unsigned int chunk_id)
 			//if (!region->chunks[(x/16)+(z/16)*32]) continue;
 
 			unsigned char id = get_id(region, x,y, z);
-			if (! (id==0 || id==9)) continue;
+			if (! (id==0 )) continue;
 
 			unsigned char below=0, above=0, left=0, right=0, front=0, back=0;
 			if (y>0) below = 	get_id(region, x,y-1,z);
@@ -797,12 +853,12 @@ build_chunk(struct region* region, struct geometry* g, unsigned int chunk_id)
 			int ny = y*BLOCK_SIZE;
 			int nz = z*BLOCK_SIZE;
 
-			if (below && below!=9) 	build_top(nx,ny-BLOCK_SIZE,nz, top_ints, 0,1,0, g, 	faces[below][0]);
-			if (above && above!=9) 	build_top(nx,ny+BLOCK_SIZE,nz, bottom_ints, 0,-1,0, g, 	faces[above][1]);
-			if (left && left!=9)	build_top(nx-BLOCK_SIZE,ny,nz, right_ints, 1,0,0, g, 	faces[left][2]);
-			if (right && right!=9)	build_top(nx+BLOCK_SIZE,ny,nz, left_ints, -1,0,0, g, 	faces[right][3]);
-			if (front && front!=9)	build_top(nx,ny,nz+BLOCK_SIZE, back_ints, 0,0,-1, g, 	faces[front][4]);
-			if (back && back!=9)	build_top(nx,ny,nz-BLOCK_SIZE, front_ints, 0,0,1, g, 	faces[back][5]);
+			if (below) 	build_top(region, nx,ny-BLOCK_SIZE,nz, top_ints, 0,1,0, g, 	faces[below][0]);
+			if (above) 	build_top(region, nx,ny+BLOCK_SIZE,nz, bottom_ints, 0,-1,0, g, 	faces[above][1]);
+			if (left )	build_top(region, nx-BLOCK_SIZE,ny,nz, right_ints, 1,0,0, g, 	faces[left][2]);
+			if (right)	build_top(region, nx+BLOCK_SIZE,ny,nz, left_ints, -1,0,0, g, 	faces[right][3]);
+			if (front)	build_top(region, nx,ny,nz+BLOCK_SIZE, back_ints, 0,0,-1, g, 	faces[front][4]);
+			if (back )	build_top(region, nx,ny,nz-BLOCK_SIZE, front_ints, 0,0,1, g, 	faces[back][5]);
 			}
 	}
 
@@ -1065,6 +1121,22 @@ float camvz =0;
 						case SDLK_DOWN:
 							player.vx-=0.2;
 							break;
+						case SDLK_t: {
+							textures_enabled ^= 1; 
+							if (!textures_enabled)
+								glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+							else
+								glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+							break;
+							}
+						case SDLK_l: {
+							lighting_enabled ^= 1; 
+							if (!lighting_enabled)
+								glDisableClientState(GL_COLOR_ARRAY);
+							else
+								glEnableClientState(GL_COLOR_ARRAY);
+							break;
+							}
 						case SDLK_SPACE:
 							{
 							float bx,by,bz;
@@ -1085,7 +1157,7 @@ float camvz =0;
 								if (cz>0) rebuild_chunk(&region, chunks, chunk_id-32);
 								if (cz<32) rebuild_chunk(&region, chunks, chunk_id+32);
 								printf("ID=%i; vbo:%i\n", id, chunks[chunk_id].vbo);
-							}
+								}
 							break;
 							}
 						}
@@ -1217,6 +1289,7 @@ float camvz =0;
 			glVertexPointer(3, GL_FLOAT, sizeof(struct vertex), 0);
 			glNormalPointer(GL_FLOAT, sizeof(struct vertex), (const void*) (3*sizeof(float)) );
 			glTexCoordPointer(2, GL_FLOAT, sizeof(struct vertex), (const void*) (6*sizeof(float)) );
+			glColorPointer(3, GL_FLOAT, sizeof(struct vertex), (const void*) (8*sizeof(float)) );
 			glDrawArrays(GL_TRIANGLES, 0, chunks[i].count);
 		}
 		render_player(&player);
