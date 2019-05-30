@@ -783,7 +783,7 @@ build_chunk(struct region* region, struct geometry* g, unsigned int chunk_id)
 			//if (!region->chunks[(x/16)+(z/16)*32]) continue;
 
 			unsigned char id = get_id(region, x,y, z);
-			if (id !=0) continue;
+			if (! (id==0 || id==9)) continue;
 
 			unsigned char below=0, above=0, left=0, right=0, front=0, back=0;
 			if (y>0) below = 	get_id(region, x,y-1,z);
@@ -797,12 +797,12 @@ build_chunk(struct region* region, struct geometry* g, unsigned int chunk_id)
 			int ny = y*BLOCK_SIZE;
 			int nz = z*BLOCK_SIZE;
 
-			if (below) 	build_top(nx,ny-BLOCK_SIZE,nz, top_ints, 0,1,0, g, 	faces[below][0]);
-			if (above) 	build_top(nx,ny+BLOCK_SIZE,nz, bottom_ints, 0,-1,0, g, 	faces[above][1]);
-			if (left)	build_top(nx-BLOCK_SIZE,ny,nz, right_ints, 1,0,0, g, 	faces[left][2]);
-			if (right)	build_top(nx+BLOCK_SIZE,ny,nz, left_ints, -1,0,0, g, 	faces[right][3]);
-			if (front)	build_top(nx,ny,nz+BLOCK_SIZE, back_ints, 0,0,-1, g, 	faces[front][4]);
-			if (back)	build_top(nx,ny,nz-BLOCK_SIZE, front_ints, 0,0,1, g, 	faces[back][5]);
+			if (below && below!=9) 	build_top(nx,ny-BLOCK_SIZE,nz, top_ints, 0,1,0, g, 	faces[below][0]);
+			if (above && above!=9) 	build_top(nx,ny+BLOCK_SIZE,nz, bottom_ints, 0,-1,0, g, 	faces[above][1]);
+			if (left && left!=9)	build_top(nx-BLOCK_SIZE,ny,nz, right_ints, 1,0,0, g, 	faces[left][2]);
+			if (right && right!=9)	build_top(nx+BLOCK_SIZE,ny,nz, left_ints, -1,0,0, g, 	faces[right][3]);
+			if (front && front!=9)	build_top(nx,ny,nz+BLOCK_SIZE, back_ints, 0,0,-1, g, 	faces[front][4]);
+			if (back && back!=9)	build_top(nx,ny,nz-BLOCK_SIZE, front_ints, 0,0,1, g, 	faces[back][5]);
 			}
 	}
 
@@ -1147,9 +1147,9 @@ float camvz =0;
 		camvz = lerp(camvz, 0, LERP_FACTOR); 
 		}
 	if (q_key) {
-		camvx = lerp(camvx, m[1]*SPEED, LERP_FACTOR); 
-		camvy = lerp(camvy, m[5]*SPEED, LERP_FACTOR); 
-		camvz = lerp(camvz, m[9]*SPEED, LERP_FACTOR); 
+		camvx = lerp(camvx, 0, LERP_FACTOR); 
+		camvy = lerp(camvy, SPEED, LERP_FACTOR); 
+		camvz = lerp(camvz, 0, LERP_FACTOR); 
 		}
 	else {
 		camvx = lerp(camvx, 0, LERP_FACTOR); 
@@ -1157,9 +1157,9 @@ float camvz =0;
 		camvz = lerp(camvz, 0, LERP_FACTOR); 
 		}
 	if (e_key) {
-		camvx = lerp(camvx, -m[1]*SPEED, LERP_FACTOR); 
-		camvy = lerp(camvy, -m[5]*SPEED, LERP_FACTOR); 
-		camvz = lerp(camvz, -m[9]*SPEED, LERP_FACTOR); 
+		camvx = lerp(camvx, 0, LERP_FACTOR); 
+		camvy = lerp(camvy, -SPEED, LERP_FACTOR); 
+		camvz = lerp(camvz, 0, LERP_FACTOR); 
 		}
 	else {
 		camvx = lerp(camvx, 0, LERP_FACTOR); 
@@ -1180,14 +1180,14 @@ float camvz =0;
 		uvz = camvz/vlen;
 	}
 
-	if (!get_id(&region, 
-			cam_pos.x+camvx+uvx,
-			cam_pos.y+camvy+uvy, 
-			cam_pos.z+camvz+uvz)) {
+//	if (!get_id(&region, 
+//			cam_pos.x+camvx+uvx,
+//			cam_pos.y+camvy+uvy, 
+//			cam_pos.z+camvz+uvz)) {
 		cam_pos.x += camvx;
 		cam_pos.y += camvy;
 		cam_pos.z += camvz;
-		} else {camvx=camvy=camvz=0;}
+//		} else {camvx=camvy=camvz=0;}
 
 
 		int mx,my;
