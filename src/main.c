@@ -16,6 +16,14 @@
 unsigned int vao, vbo, vbo2;
 unsigned int model_view_matrix_location;
 
+/* Enumerate? */
+#define FACE_TOP	0
+#define FACE_BOTTOM	1
+#define FACE_LEFT	2
+#define FACE_RIGHT	3
+#define FACE_FRONT	4
+#define FACE_BACK	5
+
 #define BLOCK_SIZE 16
 #define SPEED 2
 int lighting_enabled = 1;
@@ -343,7 +351,6 @@ Vertex indices noted on a 3d representation.
   +--------(+X)	3----------2
 
 */
-
 /* Relative coordinates of the blocks
 	to check for a given vertex.
 	vertex index matches front_ints etc
@@ -361,12 +368,14 @@ int lighting_check_ints[] = {
 		0,-1,-1,	-1,-1,-1,	-1,-1,0, /*vertex 7*/
 		};
 
-int front_ints[] = {0,3,2, 0,2,1};
-int back_ints[] = {5,6,7, 5,7,4};
-int top_ints[] = {4,0,1, 4,1,5};
-int bottom_ints[] = {3,7,6, 3,6,2};
-int left_ints[] = {4,7,3, 4,3,0};
-int right_ints[] = {1,2,6, 1,6,5};
+int face_ints[6][6] = {
+		{4,0,1, 4,1,5}, /*Top*/
+		{3,7,6, 3,6,2}, /*Bottom*/
+		{4,7,3, 4,3,0},
+		{1,2,6, 1,6,5},
+		{0,3,2, 0,2,1},
+		{5,6,7, 5,7,4}
+		};
 
 /* 16 vertically stacked sections*/
 struct chunk {
@@ -497,7 +506,7 @@ if (chunkx>31 || chunkz>31) return 0;
 	}
 
 void
-build_top(struct region* r, float x, float y, float z, int inds[6], float nx, float ny, float nz, struct geometry *g, char id)
+build_top(struct region* r, float x, float y, float z, int face_ind, float nx, float ny, float nz, struct geometry *g, char id)
 	{
 	int i;
 	int uindex[] = {0,0,1, 0,1,1};
@@ -510,11 +519,12 @@ build_top(struct region* r, float x, float y, float z, int inds[6], float nx, fl
 	fz = z/BLOCK_SIZE;
 
 	for (i=0; i<6; i++) {
+		/* Generate lighting for face*/
 		float light;
 		struct vertex v;
 		int *fs;
 		unsigned char side1, side2, corner;
-		fs = &lighting_check_ints[inds[i]*9];
+		fs = &lighting_check_ints[face_ints[face_ind][i]*9];
 		side1 = get_id(r, fx+fs[0],fy+fs[1],fz+fs[2]);
 		side2 = get_id(r, fx+fs[3],fy+fs[4],fz+fs[5]);
 		corner = get_id(r, fx+fs[6],fy+fs[7],fz+fs[8]);
@@ -522,11 +532,11 @@ build_top(struct region* r, float x, float y, float z, int inds[6], float nx, fl
 		light += side2 ? 1:0;
 		light += corner ? 1:0;
 		light = 0.2 + ((3.0-light)/(3.0))*0.8;
-		//light = (3.0-light)/3;
 
-		v.x = cube_verts[inds[i]*3 + 0] + x;
-		v.y = cube_verts[inds[i]*3 + 1] + y;
-		v.z = cube_verts[inds[i]*3 + 2] + z;
+		/* Generate cube mesh */
+		v.x = cube_verts[face_ints[face_ind][i]*3 + 0] + x;
+		v.y = cube_verts[face_ints[face_ind][i]*3 + 1] + y;
+		v.z = cube_verts[face_ints[face_ind][i]*3 + 2] + z;
 		v.nx = nx;
 		v.ny = ny;
 		v.nz = nz;
@@ -557,7 +567,7 @@ float verts2[] = {
 	};
 
 void
-setup_sdl(char* title, int w, int h)
+setup_sdl(char* title, int w, int h, int x, int y)
 	{
 	SDL_GLContext *context;
 
@@ -565,7 +575,7 @@ setup_sdl(char* title, int w, int h)
 
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-	window = SDL_CreateWindow(title, 0,0, w, h, SDL_WINDOW_OPENGL);
+	window = SDL_CreateWindow(title, x,y, w, h, SDL_WINDOW_OPENGL|SDL_WINDOW_BORDERLESS|SDL_WINDOW_MOUSE_CAPTURE);
 	context = SDL_GL_CreateContext(window);
 	puts((const char*)glGetString(GL_VERSION));
 
@@ -857,12 +867,12 @@ build_chunk(struct region* region, struct geometry* g, unsigned int chunk_id)
 			int ny = y*BLOCK_SIZE;
 			int nz = z*BLOCK_SIZE;
 
-			if (below) 	build_top(region, nx,ny-BLOCK_SIZE,nz, top_ints, 0,1,0, g, 	faces[below][0]);
-			if (above) 	build_top(region, nx,ny+BLOCK_SIZE,nz, bottom_ints, 0,-1,0, g, 	faces[above][1]);
-			if (left )	build_top(region, nx-BLOCK_SIZE,ny,nz, right_ints, 1,0,0, g, 	faces[left][2]);
-			if (right)	build_top(region, nx+BLOCK_SIZE,ny,nz, left_ints, -1,0,0, g, 	faces[right][3]);
-			if (front)	build_top(region, nx,ny,nz+BLOCK_SIZE, back_ints, 0,0,-1, g, 	faces[front][4]);
-			if (back )	build_top(region, nx,ny,nz-BLOCK_SIZE, front_ints, 0,0,1, g, 	faces[back][5]);
+			if (below) 	build_top(region, nx,ny-BLOCK_SIZE,nz, FACE_TOP, 0,1,0, g, 	faces[below][0]);
+			if (above) 	build_top(region, nx,ny+BLOCK_SIZE,nz, FACE_BOTTOM, 0,-1,0, g, 	faces[above][1]);
+			if (left )	build_top(region, nx-BLOCK_SIZE,ny,nz, FACE_RIGHT, 1,0,0, g, 	faces[left][2]);
+			if (right)	build_top(region, nx+BLOCK_SIZE,ny,nz, FACE_LEFT, -1,0,0, g, 	faces[right][3]);
+			if (front)	build_top(region, nx,ny,nz+BLOCK_SIZE, FACE_BACK, 0,0,-1, g, 	faces[front][4]);
+			if (back )	build_top(region, nx,ny,nz-BLOCK_SIZE, FACE_FRONT, 0,0,1, g, 	faces[back][5]);
 			}
 	}
 
@@ -1004,6 +1014,26 @@ matrix_rotate(float* matrix, float l, float m, float n, float theta)
 	matrix_multiply(matrix, rotate);
 	}
 
+void
+make_projection_matrix(float pmat[16], float w, float h, float fov)
+	{
+	float aspect = w/h;
+	float n = 1;
+	float f = 10000;
+	float r = aspect;
+	float l = -aspect;
+	float t = 1;
+	float b = -1;
+	float height = t-b;
+	n = (height / 2.0f) / tan( ((fov/180.0)*M_PI) / 2.0);
+	float projection_matrix[] = {
+			n/r, 0, 0, 0,
+			0, n/t, 0, 0,
+			0, 0, (n+f)/(n-f), -1,
+			0, 0, (-2*f*n)/(f-n), 0
+			};	
+	memcpy(pmat, projection_matrix, sizeof(float)*16);
+	}
 int
 main(int argc, char *argv[])
 	{
@@ -1054,7 +1084,22 @@ struct line line = {0,0,0, 0,0,10};
 	/* Set up SDL*/
 	int quit = 0;
 	SDL_Event event;
-setup_sdl("MCViewer", 1024, 1024);
+int display_index = 0;
+
+SDL_Init(SDL_INIT_VIDEO);
+
+	SDL_DisplayMode dm;
+ printf("Using Display %i\n", display_index);
+
+ if (SDL_GetCurrentDisplayMode(display_index, &dm) != 0)
+  {
+  printf("Display[%i] does not exist.", display_index);
+ exit(-1);
+}
+	SDL_Rect b_rect;
+	SDL_GetDisplayUsableBounds(display_index, &b_rect);
+	printf("Display: %ix%i\n", b_rect.w, b_rect.h);
+setup_sdl("MCViewer", dm.w, dm.h, b_rect.x, b_rect.y);
 
 fp = fopen("resources/tiles.tga", "rb");
 void* pixels;
@@ -1101,27 +1146,16 @@ float camvy =0;
 float camvz =0;
 float rot=0;
 float m[16];
-	float n = 1;
-	float f = 10000;
-	float r = 1;
-	float l = -1;
-	float t = 1;
-	float b = -1;
-	float projection_matrix[] = {
-			n/r, 0, 0, 0,
-			0, n/t, 0, 0,
-			0, 0, (n+f)/(n-f), -1,
-			0, 0, (-2*f*n)/(f-n), 0
-			};	
-
-
+float projection_matrix[16];
+make_projection_matrix(projection_matrix, b_rect.w, b_rect.h, 80);
+SDL_SetRelativeMouseMode(SDL_TRUE);
+float theta=0;
 	while(!quit) {
 		matrix_load(m, projection_matrix);
 		matrix_rotate(m, 1,0,0, cam_pos.rx);
 		matrix_rotate(m, 0,1,0, cam_pos.ry);
 		matrix_translate(m, -cam_pos.x*BLOCK_SIZE, -cam_pos.y*BLOCK_SIZE, -cam_pos.z*BLOCK_SIZE);
 
-		glUniformMatrix4fv(model_view_matrix_location, 1, 0, m);
 
 		while (SDL_PollEvent(&event)) {
 			switch (event.type) {
@@ -1283,15 +1317,17 @@ float m[16];
 		cam_pos.y += camvy;
 		cam_pos.z += camvz;
 
+		glUniformMatrix4fv(model_view_matrix_location, 1, 0, m);
+
 		int mx,my;
 		int mleft = 0;
 		int ret = SDL_GetRelativeMouseState(&mx, &my);
 		if (ret & SDL_BUTTON(SDL_BUTTON_LEFT)) mleft = 1;
 
-		if (mx && mleft) {
+		if (mx) {
 			cam_pos.ry += mx/256.0;
 		}
-		if (my && mleft) {
+		if (my) {
 			cam_pos.rx += my/256.0;
 		}
 
