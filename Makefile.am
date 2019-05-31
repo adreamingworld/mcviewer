@@ -13,6 +13,8 @@ mcviewer_SOURCES = \
 		src/nbt_utils.h \
 		src/myz.c \
 		src/myz.h \
+		src/shader.c \
+		src/shader.h \
 		src/main.c
 			
 

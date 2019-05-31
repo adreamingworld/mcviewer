@@ -1,12 +1,22 @@
+[x] Use Opengl 3.3
+	[X] shaders
+		[X] Projection + ModelView Matrix
+
+[ ] Tidy up
+	[ ] 3D maths
+	[ ] map building
+	[ ] Utilities like picking etc still in main.c?
+
 [ ] Ambient occlusion
 	https://0fps.net/2013/07/03/ambient-occlusion-for-minecraft-like-worlds/
 	use color attribute to shade. turn lighting off?
 	or it can complement the lighting
+	[ ] Take into account which face it is!
 	My ambient occlusion only takes into account the vertex
 	Infact depending on the face the blocks needed to
 	be checked also change!!!! Think about it
 
-[ ] When we change blocks we need to rebuild surrounding chunks
+[X] When we change blocks we need to rebuild surrounding chunks
 	if changed block was on a boundary of a chunk!
 
 [ ] Rebuild chunks

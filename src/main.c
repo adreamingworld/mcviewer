@@ -11,7 +11,10 @@
 #include <GL/glew.h>
 #include <SDL_opengl.h>
 
+#include <shader.h>
+
 unsigned int vao, vbo, vbo2;
+unsigned int model_view_matrix_location;
 
 #define BLOCK_SIZE 16
 #define SPEED 2
@@ -38,9 +41,9 @@ set_position(struct position* original, struct position* destination)
 	original->x = destination->x;
 	original->y = destination->y;
 	original->z = destination->z;
-	original->rx = destination->rx;
-	original->ry = destination->ry;
-	original->rz = destination->rz;
+	original->rx = (destination->rx/180.0)*M_PI;
+	original->ry = (destination->ry/180.0)*M_PI;
+	original->rz = (destination->rz/180.0)*M_PI;
 	}
 /*
 	below above left right front back
@@ -559,13 +562,18 @@ setup_sdl(char* title, int w, int h)
 	SDL_GLContext *context;
 
 	SDL_Init(SDL_INIT_VIDEO);
+
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
 	window = SDL_CreateWindow(title, 0,0, w, h, SDL_WINDOW_OPENGL);
 	context = SDL_GL_CreateContext(window);
+	puts((const char*)glGetString(GL_VERSION));
 
 	if (!context) puts("Failed context");
 	glewInit();
 	/*VAO*/
-	//glCreateVertexArrays(1, &vao);
+	glCreateVertexArrays(1, &vao);
+	glBindVertexArray(vao);
 
 	glEnable(GL_TEXTURE_2D);
 	glEnable(GL_DEPTH_TEST);
@@ -580,6 +588,21 @@ setup_sdl(char* title, int w, int h)
 	glLightfv(GL_LIGHT0, GL_AMBIENT, color);
 	glLightModelfv(GL_LIGHT_MODEL_AMBIENT, color);
 	glClearColor(0,0,1,0);
+
+	struct shader shaders[2];
+	shaders[0].type = GL_VERTEX_SHADER;
+	shader_source_from_file(&shaders[0], "resources/shader.vert");
+	shaders[1].type = GL_FRAGMENT_SHADER;
+	shader_source_from_file(&shaders[1], "resources/shader.frag");
+
+	unsigned int program = shader_create_program(2, shaders);
+
+	model_view_matrix_location = glGetUniformLocation(program, "ModelViewProjectionMatrix");
+
+	float aspect = ((float)w/(float)h);
+	glMatrixMode(GL_PROJECTION);
+	glFrustum(-aspect, aspect, -1, 1, 1, 10000);
+	glMatrixMode(GL_MODELVIEW);
 	}
 
 /*Set a block in the region
@@ -609,17 +632,26 @@ geometry_to_vbo(struct geometry* g)
 	{
 	unsigned int vbo;
 	glGenBuffers(1, &vbo);
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glEnableClientState(GL_NORMAL_ARRAY);
-	if (textures_enabled) glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-	if (lighting_enabled)glEnableClientState(GL_COLOR_ARRAY);
+
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(struct vertex)*g->count, g->verts, GL_STATIC_DRAW);
 
-	glVertexPointer(3, GL_FLOAT, sizeof(struct vertex), 0);
-	glNormalPointer(GL_FLOAT, sizeof(struct vertex), (const void*) (3*sizeof(float)) );
-	glTexCoordPointer(2, GL_FLOAT, sizeof(struct vertex), (const void*) (6*sizeof(float)) );
-	glColorPointer(3, GL_FLOAT, sizeof(struct vertex), (const void*) (8*sizeof(float)) );
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(struct vertex), 0);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(struct vertex), (const void*) (6*sizeof(float)));
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(struct vertex), (const void*) (8*sizeof(float)));
+
+	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1);
+	glEnableVertexAttribArray(2);
+
+	/*Set default texture color rgb as 1,1,1 white*/
+	glVertexAttrib2f(1, (16.0/1024)*10,0);
+	/*Set default color rgb as 1,1,1 white*/
+	glVertexAttrib3f(2, 1,1,1);
+
+	glBindAttribLocation(1, 0, "in_Position");
+	glBindAttribLocation(1, 1, "in_TexCoord");
+	glBindAttribLocation(1, 2, "in_Color");
 
 	return vbo;
 	}
@@ -629,34 +661,6 @@ struct line {
 	float b[3];
 	};
 
-void
-draw_line(struct line *l)
-	{
-	float a[3];
-	float b[3];
-	a[0] = l->a[0]*BLOCK_SIZE;
-	a[1] = l->a[1]*BLOCK_SIZE;
-	a[2] = l->a[2]*BLOCK_SIZE;
-	b[0] = l->b[0]*BLOCK_SIZE;
-	b[1] = l->b[1]*BLOCK_SIZE;
-	b[2] = l->b[2]*BLOCK_SIZE;
-	glDisable(GL_TEXTURE_2D);
-	//glDisable(GL_LIGHTING);
-		glBegin(GL_LINES);
-		glColor3f(0.5, 0.5, 0.5);
-		glVertex3fv(a);
-		glVertex3fv(b);
-		glEnd();
-		glBegin(GL_POINTS);
-		glColor3f(0,1,0);
-		glVertex3fv(a);
-		glColor3f(1,0,0);
-		glVertex3fv(b);
-		glEnd();
-	glEnable(GL_TEXTURE_2D);
-	//glEnable(GL_LIGHTING);
-		glColor3f(1,1,1);
-	}
 /*
 We don't really need the square root to get the length?
 As long as unit vectors?
@@ -913,67 +917,91 @@ float pverts[]={
 	};
 
 void
-render_player(struct player* p)
+matrix_load(float a[16], float b[16])
 	{
-	glTranslatef(p->x*BLOCK_SIZE, p->y*BLOCK_SIZE, p->z*BLOCK_SIZE);
+	memcpy(a, b, sizeof(float)*16);
+	}
+void
+matrix_identity(float m[16])
+	{
+	memset(m, 0, 16*sizeof(float));
+	m[ 0]=1; 
+	m[ 5]=1; 
+	m[10]=1; 
+	m[15]=1; 
+	}
 
-	glBegin(GL_QUADS);
-	glNormal3f(0,0,-1);
-	glVertex3fv(&pverts[0]);
-	glVertex3fv(&pverts[1*3]);
-	glVertex3fv(&pverts[2*3]);
-	glVertex3fv(&pverts[3*3]);
+/*
+0	4	8	12
+1	5	9	13
+2	6	10	14
+3	7	11	15
+*/
 
-	glNormal3f(0,0,1);
-	glVertex3fv(&pverts[4*3]);
-	glVertex3fv(&pverts[5*3]);
-	glVertex3fv(&pverts[6*3]);
-	glVertex3fv(&pverts[7*3]);
+void
+matrix_multiply(float a[16], float b[16])
+	{
+	float tm[16];
+	tm[ 0] = a[0]*b[ 0] + a[4]*b[ 1] + a[ 8]*b[ 2] + a[12]*b[3];
+	tm[ 4] = a[0]*b[ 4] + a[4]*b[ 5] + a[ 8]*b[ 6] + a[12]*b[7];
+	tm[ 8] = a[0]*b[ 8] + a[4]*b[ 9] + a[ 8]*b[10] + a[12]*b[11];
+	tm[12] = a[0]*b[12] + a[4]*b[13] + a[ 8]*b[14] + a[12]*b[15];
 
-	glNormal3f(-1,0,0);
-	glVertex3fv(&pverts[8*3]);
-	glVertex3fv(&pverts[9*3]);
-	glVertex3fv(&pverts[10*3]);
-	glVertex3fv(&pverts[11*3]);
-	
-	glNormal3f(1,0,0);
-	glVertex3fv(&pverts[12*3]);
-	glVertex3fv(&pverts[13*3]);
-	glVertex3fv(&pverts[14*3]);
-	glVertex3fv(&pverts[15*3]);
+	tm[ 1] = a[1]*b[ 0] + a[5]*b[ 1] + a[ 9]*b[ 2] + a[13]*b[3];
+	tm[ 5] = a[1]*b[ 4] + a[5]*b[ 5] + a[ 9]*b[ 6] + a[13]*b[7];
+	tm[ 9] = a[1]*b[ 8] + a[5]*b[ 9] + a[ 9]*b[10] + a[13]*b[11];
+	tm[13] = a[1]*b[12] + a[5]*b[13] + a[ 9]*b[14] + a[13]*b[15];
 
-	glNormal3f(0,+1,0);
-	glVertex3fv(&pverts[16*3]);
-	glVertex3fv(&pverts[17*3]);
-	glVertex3fv(&pverts[18*3]);
-	glVertex3fv(&pverts[19*3]);
+	tm[ 2] = a[2]*b[ 0] + a[6]*b[ 1] + a[10]*b[ 2] + a[14]*b[3];
+	tm[ 6] = a[2]*b[ 4] + a[6]*b[ 5] + a[10]*b[ 6] + a[14]*b[7];
+	tm[10] = a[2]*b[ 8] + a[6]*b[ 9] + a[10]*b[10] + a[14]*b[11];
+	tm[14] = a[2]*b[12] + a[6]*b[13] + a[10]*b[14] + a[14]*b[15];
 
-	glNormal3f(0,-1,0);
-	glVertex3fv(&pverts[20*3]);
-	glVertex3fv(&pverts[21*3]);
-	glVertex3fv(&pverts[22*3]);
-	glVertex3fv(&pverts[23*3]);
-
-	glEnd();
+	tm[ 3] = a[3]*b[ 0] + a[7]*b[ 1] + a[11]*b[ 2] + a[15]*b[3];
+	tm[ 7] = a[3]*b[ 4] + a[7]*b[ 5] + a[11]*b[ 6] + a[15]*b[7];
+	tm[11] = a[3]*b[ 8] + a[7]*b[ 9] + a[11]*b[10] + a[15]*b[11];
+	tm[15] = a[3]*b[12] + a[7]*b[13] + a[11]*b[14] + a[15]*b[15];
+	memcpy(a, tm, 16*sizeof(float));
 	}
 
 void
-player_move(struct player* p, struct region* r)
+matrix_translate(float m[16], float x, float y, float z)
 	{
-	float x,y,z;
-	float btmx = p->vx + p->x + 0.5;
-	float btmy = p->vy + p->y -2;
-	float btmz = p->vz + p->z - 0.5;
-	float frnx = p->vx + p->x + 0.7;
-	float frny = p->vy + p->y -1.5;
-	float frnz = p->vz + p->z - 0.5;
 
-	unsigned char btm,frn;
-	btm = get_id(r, btmx, btmy, btmz);
-	frn = get_id(r, frnx, frny, frnz);
-	if (!btm) p->y += p->vy;
-	if (!frn) p->x += p->vx;
-	p->z += p->vz;
+	float trans[16]= {
+		1,0,0,0,
+		0,1,0,0,
+		0,0,1,0,
+		x,y,z,1,
+		};
+	matrix_multiply(m, trans);
+	}
+void
+matrix_rotate(float* matrix, float l, float m, float n, float theta)
+	{
+	float rotate[16];
+
+	rotate[0] = ((l * l) *(1-cos(theta))) + cos(theta);
+	rotate[1] = ((l * m) *(1-cos(theta))) + (n*sin(theta));
+	rotate[2] = ((l * n) *(1-cos(theta))) - (m*sin(theta));
+	rotate[3] = 0;
+
+	rotate[4] = ((m * l) * (1-cos(theta))) - (n * sin(theta));
+	rotate[5] = ((m * m) * (1-cos(theta))) + (cos(theta));
+	rotate[6] = ((m * n) * (1-cos(theta))) + (l * sin(theta));
+	rotate[7] = 0;
+
+	rotate[8] = ((n * l) * (1-cos(theta))) + (m * sin(theta));
+	rotate[9] = ((n * m) * (1-cos(theta))) - (l * sin(theta));
+	rotate[10] =((n * n) * (1-cos(theta))) + cos(theta);
+	rotate[11] = 0;
+
+	rotate[12]=0;
+	rotate[13]=0;
+	rotate[14]=0;
+	rotate[15]=1;
+
+	matrix_multiply(matrix, rotate);
 	}
 
 int
@@ -984,13 +1012,6 @@ main(int argc, char *argv[])
 	FILE *fp;
 	int i;
 	int region_map[0x2000];
-	struct player player={0};
-
-	player.x = 0;
-	player.y = 100;
-	player.z = 41;
-
-	player.vy = -0.1;
 
 	puts(PACKAGE_STRING);
 	struct region region = {0};
@@ -1054,11 +1075,6 @@ glGenerateMipmap(GL_TEXTURE_2D);
 free(pixels);
 
 
-glMatrixMode(GL_PROJECTION);
-glFrustum(-1, 1, -1, 1, 1, 10000);
-glMatrixMode(GL_MODELVIEW);
-
-
 set_position(&cam_pos, &photo_position);
 
 struct geometry geometry;
@@ -1077,18 +1093,35 @@ char up=0,down=0,left=0,right=0;
 char q_key=0;
 char e_key=0;
 
-float m[16]={0};
 glLineWidth(4);
 glPointSize(8);
 
 float camvx =0;
 float camvy =0;
 float camvz =0;
+float rot=0;
+float m[16];
+	float n = 1;
+	float f = 10000;
+	float r = 1;
+	float l = -1;
+	float t = 1;
+	float b = -1;
+	float projection_matrix[] = {
+			n/r, 0, 0, 0,
+			0, n/t, 0, 0,
+			0, 0, (n+f)/(n-f), -1,
+			0, 0, (-2*f*n)/(f-n), 0
+			};	
+
+
 	while(!quit) {
-		float fx, fy, fz;
-		fx = m[2];
-		fy = m[6];
-		fz = m[10];
+		matrix_load(m, projection_matrix);
+		matrix_rotate(m, 1,0,0, cam_pos.rx);
+		matrix_rotate(m, 0,1,0, cam_pos.ry);
+		matrix_translate(m, -cam_pos.x*BLOCK_SIZE, -cam_pos.y*BLOCK_SIZE, -cam_pos.z*BLOCK_SIZE);
+
+		glUniformMatrix4fv(model_view_matrix_location, 1, 0, m);
 
 		while (SDL_PollEvent(&event)) {
 			switch (event.type) {
@@ -1115,34 +1148,28 @@ float camvz =0;
 							/*Set cam position*/
 							set_position(&cam_pos, &photo_position);
 							break;
-						case SDLK_UP:
-							player.vx+=0.2;
-							break;
-						case SDLK_DOWN:
-							player.vx-=0.2;
-							break;
 						case SDLK_t: {
 							textures_enabled ^= 1; 
 							if (!textures_enabled)
-								glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+								glDisableVertexAttribArray(1);
 							else
-								glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+								glEnableVertexAttribArray(1);
 							break;
 							}
 						case SDLK_l: {
 							lighting_enabled ^= 1; 
 							if (!lighting_enabled)
-								glDisableClientState(GL_COLOR_ARRAY);
+								glDisableVertexAttribArray(2);
 							else
-								glEnableClientState(GL_COLOR_ARRAY);
+								glEnableVertexAttribArray(2);
 							break;
 							}
 						case SDLK_SPACE:
 							{
 							float bx,by,bz;
-							float vx=-m[2]; 
-							float vy=-m[6]; 
-							float vz=-m[10]; 
+							float vx=m[2]; 
+							float vy=m[6]; 
+							float vz=m[10]; 
 							unsigned char id = cast_ray(&region, 1, cam_pos.x,cam_pos.y,cam_pos.z, vx,vy,vz, &bx,&by,&bz);
 							printf("Result %f %f %f\n", bx,by,bz);
 							if (bx>0 && by>0 && bz>0 && id>0) {
@@ -1175,92 +1202,86 @@ float camvz =0;
 				}
 			}
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-#define LERP_FACTOR 0.02
-	if (up) {
-		camvx = lerp(camvx, -m[2]*SPEED, LERP_FACTOR); 
-		camvy = lerp(camvy, -m[6]*SPEED, LERP_FACTOR); 
-		camvz = lerp(camvz, -m[10]*SPEED, LERP_FACTOR); 
+		#define LERP_FACTOR 0.02
+		if (up) {
+			camvx = lerp(camvx, m[2]*SPEED, LERP_FACTOR); 
+			camvy = lerp(camvy, m[6]*SPEED, LERP_FACTOR); 
+			camvz = lerp(camvz, m[10]*SPEED, LERP_FACTOR); 
+			}
+		else {
+			camvx = lerp(camvx, 0, LERP_FACTOR); 
+			camvy = lerp(camvy, 0, LERP_FACTOR); 
+			camvz = lerp(camvz, 0, LERP_FACTOR); 
+			}
+		if (down) {
+			camvx = lerp(camvx, -m[2]*SPEED, LERP_FACTOR); 
+			camvy = lerp(camvy, -m[6]*SPEED, LERP_FACTOR); 
+			camvz = lerp(camvz, -m[10]*SPEED, LERP_FACTOR); 
+			}
+		else {
+			camvx = lerp(camvx, 0, LERP_FACTOR); 
+			camvy = lerp(camvy, 0, LERP_FACTOR); 
+			camvz = lerp(camvz, 0, LERP_FACTOR); 
+			}
+	
+		if (left) {
+			camvx = lerp(camvx, -m[0]*SPEED, LERP_FACTOR); 
+			camvy = lerp(camvy, -m[4]*SPEED, LERP_FACTOR); 
+			camvz = lerp(camvz, -m[8]*SPEED, LERP_FACTOR); 
+			}
+		else {
+			camvx = lerp(camvx, 0, LERP_FACTOR); 
+			camvy = lerp(camvy, 0, LERP_FACTOR); 
+			camvz = lerp(camvz, 0, LERP_FACTOR); 
+			}
+	
+		if (right) {
+			camvx = lerp(camvx, m[0]*SPEED, LERP_FACTOR); 
+			camvy = lerp(camvy, m[4]*SPEED, LERP_FACTOR); 
+			camvz = lerp(camvz, m[8]*SPEED, LERP_FACTOR); 
+			}
+		else {
+			camvx = lerp(camvx, 0, LERP_FACTOR); 
+			camvy = lerp(camvy, 0, LERP_FACTOR); 
+			camvz = lerp(camvz, 0, LERP_FACTOR); 
+			}
+		if (q_key) {
+			camvx = lerp(camvx, 0, LERP_FACTOR); 
+			camvy = lerp(camvy, SPEED, LERP_FACTOR); 
+			camvz = lerp(camvz, 0, LERP_FACTOR); 
+			}
+		else {
+			camvx = lerp(camvx, 0, LERP_FACTOR); 
+			camvy = lerp(camvy, 0, LERP_FACTOR); 
+			camvz = lerp(camvz, 0, LERP_FACTOR); 
+			}
+		if (e_key) {
+			camvx = lerp(camvx, 0, LERP_FACTOR); 
+			camvy = lerp(camvy, -SPEED, LERP_FACTOR); 
+			camvz = lerp(camvz, 0, LERP_FACTOR); 
+			}
+		else {
+			camvx = lerp(camvx, 0, LERP_FACTOR); 
+			camvy = lerp(camvy, 0, LERP_FACTOR); 
+			camvz = lerp(camvz, 0, LERP_FACTOR); 
+			}
+		/*add movement VECTOr not VIEW vector */
+		float uvx, uvy, uvz;
+		float vlen = camvx*camvx + camvy*camvy + camvz*camvz;
+		if (vlen == 0) {
+			vlen=0;
+			uvx=uvy=uvz=0;
+			}
+		else {
+			vlen = sqrt(vlen);
+			uvx = camvx/vlen;
+			uvy = camvy/vlen;
+			uvz = camvz/vlen;
 		}
-	else {
-		camvx = lerp(camvx, 0, LERP_FACTOR); 
-		camvy = lerp(camvy, 0, LERP_FACTOR); 
-		camvz = lerp(camvz, 0, LERP_FACTOR); 
-		}
-	if (down) {
-		camvx = lerp(camvx, m[2]*SPEED, LERP_FACTOR); 
-		camvy = lerp(camvy, m[6]*SPEED, LERP_FACTOR); 
-		camvz = lerp(camvz, m[10]*SPEED, LERP_FACTOR); 
-		}
-	else {
-		camvx = lerp(camvx, 0, LERP_FACTOR); 
-		camvy = lerp(camvy, 0, LERP_FACTOR); 
-		camvz = lerp(camvz, 0, LERP_FACTOR); 
-		}
-
-	if (left) {
-		camvx = lerp(camvx, -m[0]*SPEED, LERP_FACTOR); 
-		camvy = lerp(camvy, -m[4]*SPEED, LERP_FACTOR); 
-		camvz = lerp(camvz, -m[8]*SPEED, LERP_FACTOR); 
-		}
-	else {
-		camvx = lerp(camvx, 0, LERP_FACTOR); 
-		camvy = lerp(camvy, 0, LERP_FACTOR); 
-		camvz = lerp(camvz, 0, LERP_FACTOR); 
-		}
-
-	if (right) {
-		camvx = lerp(camvx, m[0]*SPEED, LERP_FACTOR); 
-		camvy = lerp(camvy, m[4]*SPEED, LERP_FACTOR); 
-		camvz = lerp(camvz, m[8]*SPEED, LERP_FACTOR); 
-		}
-	else {
-		camvx = lerp(camvx, 0, LERP_FACTOR); 
-		camvy = lerp(camvy, 0, LERP_FACTOR); 
-		camvz = lerp(camvz, 0, LERP_FACTOR); 
-		}
-	if (q_key) {
-		camvx = lerp(camvx, 0, LERP_FACTOR); 
-		camvy = lerp(camvy, SPEED, LERP_FACTOR); 
-		camvz = lerp(camvz, 0, LERP_FACTOR); 
-		}
-	else {
-		camvx = lerp(camvx, 0, LERP_FACTOR); 
-		camvy = lerp(camvy, 0, LERP_FACTOR); 
-		camvz = lerp(camvz, 0, LERP_FACTOR); 
-		}
-	if (e_key) {
-		camvx = lerp(camvx, 0, LERP_FACTOR); 
-		camvy = lerp(camvy, -SPEED, LERP_FACTOR); 
-		camvz = lerp(camvz, 0, LERP_FACTOR); 
-		}
-	else {
-		camvx = lerp(camvx, 0, LERP_FACTOR); 
-		camvy = lerp(camvy, 0, LERP_FACTOR); 
-		camvz = lerp(camvz, 0, LERP_FACTOR); 
-		}
-	/*add movement VECTOr not VIEW vector */
-	float uvx, uvy, uvz;
-	float vlen = camvx*camvx + camvy*camvy + camvz*camvz;
-	if (vlen == 0) {
-		vlen=0;
-		uvx=uvy=uvz=0;
-		}
-	else {
-		vlen = sqrt(vlen);
-		uvx = camvx/vlen;
-		uvy = camvy/vlen;
-		uvz = camvz/vlen;
-	}
-
-//	if (!get_id(&region, 
-//			cam_pos.x+camvx+uvx,
-//			cam_pos.y+camvy+uvy, 
-//			cam_pos.z+camvz+uvz)) {
+	
 		cam_pos.x += camvx;
 		cam_pos.y += camvy;
 		cam_pos.z += camvz;
-//		} else {camvx=camvy=camvz=0;}
-
 
 		int mx,my;
 		int mleft = 0;
@@ -1268,47 +1289,21 @@ float camvz =0;
 		if (ret & SDL_BUTTON(SDL_BUTTON_LEFT)) mleft = 1;
 
 		if (mx && mleft) {
-			cam_pos.ry += mx/4.0;
+			cam_pos.ry += mx/256.0;
 		}
 		if (my && mleft) {
-			cam_pos.rx += my/4.0;
+			cam_pos.rx += my/256.0;
 		}
 
-		glLoadIdentity();
-		glRotatef(cam_pos.rx, 1,0,0);
-		glRotatef(cam_pos.ry, 0,1,0);
-		glTranslatef(
-			-cam_pos.x*BLOCK_SIZE,
-			-cam_pos.y*BLOCK_SIZE,
-			-cam_pos.z*BLOCK_SIZE);
-		glGetFloatv(GL_MODELVIEW_MATRIX, m);
-		
-		//glDrawArrays(GL_TRIANGLES, 0, geometry.count);
+
 		for (i=0; i<32*32; i++) {
 			glBindBuffer(GL_ARRAY_BUFFER, chunks[i].vbo);
-			glVertexPointer(3, GL_FLOAT, sizeof(struct vertex), 0);
-			glNormalPointer(GL_FLOAT, sizeof(struct vertex), (const void*) (3*sizeof(float)) );
-			glTexCoordPointer(2, GL_FLOAT, sizeof(struct vertex), (const void*) (6*sizeof(float)) );
-			glColorPointer(3, GL_FLOAT, sizeof(struct vertex), (const void*) (8*sizeof(float)) );
+			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(struct vertex), 0);
+			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(struct vertex), (const void*) (6*sizeof(float)));
+			glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(struct vertex), (const void*) (8*sizeof(float)));
 			glDrawArrays(GL_TRIANGLES, 0, chunks[i].count);
 		}
-		render_player(&player);
 
-		player_move(&player, &region);
-
-	glLoadIdentity();
-		glDisable(GL_DEPTH_TEST);
-		glDisable(GL_TEXTURE_2D);
-		glBegin(GL_LINES);
-		glColor3f(1,1,1);
-		glNormal3f(0,0,1);
-		glVertex3f(0.02,0,	-1);
-		glVertex3f(-0.02,0,	-1);
-		glVertex3f(0,-0.02,	-1);
-		glVertex3f(0,0.02,	-1);
-		glEnd();
-		glEnable(GL_DEPTH_TEST);
-		glEnable(GL_TEXTURE_2D);
 		SDL_GL_SwapWindow(window);
 		}
 
