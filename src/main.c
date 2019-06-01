@@ -6,12 +6,13 @@
 #include <myz.h>
 #include <nbt.h>
 #include <nbt_utils.h>
+#include <shader.h>
+#include <math3d.h>
 
 #include <SDL.h>
 #include <GL/glew.h>
 #include <SDL_opengl.h>
 
-#include <shader.h>
 
 unsigned int vao, vbo, vbo2;
 unsigned int model_view_matrix_location;
@@ -25,7 +26,7 @@ unsigned int model_view_matrix_location;
 #define FACE_BACK	5
 
 #define BLOCK_SIZE 16
-#define SPEED 2
+#define SPEED 4
 int lighting_enabled = 1;
 int textures_enabled = 1;
 
@@ -328,6 +329,7 @@ struct geometry {
 	unsigned int vbo;
 	};
 
+/* Verts for a cube - used as a reference to build blocks from*/
 float cube_verts[] = {
 	BLOCK_SIZE*0,		BLOCK_SIZE*1,		BLOCK_SIZE*1,
 	BLOCK_SIZE*1,		BLOCK_SIZE*1,		BLOCK_SIZE*1,
@@ -351,24 +353,8 @@ Vertex indices noted on a 3d representation.
   +--------(+X)	3----------2
 
 */
-/* Relative coordinates of the blocks
-	to check for a given vertex.
-	vertex index matches front_ints etc
-	for convenience.
-*/
-int lighting_check_ints[] = {
-		0,1,1,		-1,1,1,		-1,1,0, /*vertex 0*/
-		0,1,1,		1,1,1,		1,1,0, /*vertex 1*/
-		0,-1,1,		1,-1,1,		1,-1,0, /*vertex 2*/
-		0,-1,1,		-1,-1,1,	-1,-1,0, /*vertex 3*/
 
-		0,1,-1,		-1,1,-1,	-1,1,0, /*vertex 4*/
-		0,1,-1,		1,1,-1,		1,1,0, /*vertex 5*/
-		0,-1,-1,	1,-1,-1,	1,-1,0, /*vertex 6*/
-		0,-1,-1,	-1,-1,-1,	-1,-1,0, /*vertex 7*/
-		};
-
-int face_ints[6][6] = {
+char face_ints[6][6] = {
 		{4,0,1, 4,1,5}, /*Top*/
 		{3,7,6, 3,6,2}, /*Bottom*/
 		{4,7,3, 4,3,0},
@@ -519,20 +505,10 @@ build_top(struct region* r, float x, float y, float z, int face_ind, float nx, f
 	fz = z/BLOCK_SIZE;
 
 	for (i=0; i<6; i++) {
-		/* Generate lighting for face*/
-		float light;
+		float light=0;
 		struct vertex v;
-		int *fs;
 		unsigned char side1, side2, corner;
-		fs = &lighting_check_ints[face_ints[face_ind][i]*9];
-		side1 = get_id(r, fx+fs[0],fy+fs[1],fz+fs[2]);
-		side2 = get_id(r, fx+fs[3],fy+fs[4],fz+fs[5]);
-		corner = get_id(r, fx+fs[6],fy+fs[7],fz+fs[8]);
-		light = side1 ? 1:0;
-		light += side2 ? 1:0;
-		light += corner ? 1:0;
-		light = 0.2 + ((3.0-light)/(3.0))*0.8;
-
+		
 		/* Generate cube mesh */
 		v.x = cube_verts[face_ints[face_ind][i]*3 + 0] + x;
 		v.y = cube_verts[face_ints[face_ind][i]*3 + 1] + y;
@@ -542,10 +518,43 @@ build_top(struct region* r, float x, float y, float z, int face_ind, float nx, f
 		v.nz = nz;
 		v.u = (tu * (id%64)) + (tu*uindex[i]);
 		v.v = (tu * (id/64)) + (tu*vindex[i]);
+
+		/*Generate lighting*/
+		int icorner[3]={0};
+		int iside1[3]={0};
+		int iside2[3]={0};
+		
+		/*Get corner according to the position of the vertex
+		being calculated
+		*/
+		icorner[0] = iside1[0] = iside2[0] = (v.x - x)==0 ? -1 : 1;
+		icorner[1] = iside1[1] = iside2[1] = (v.y - y)==0 ? -1 : 1;
+		icorner[2] = iside1[2] = iside2[2] = (v.z - z)==0 ? -1 : 1;
+
+		if (face_ind == FACE_TOP || face_ind==FACE_BOTTOM) {
+			iside1[0] = 0;
+			iside2[2] = 0;
+		}
+		if (face_ind == FACE_LEFT || face_ind==FACE_RIGHT) {
+			iside1[1] = 0;
+			iside2[2] = 0;
+		}
+		if (face_ind==FACE_FRONT || face_ind==FACE_BACK) {
+			iside1[0] = 0;
+			iside2[1] = 0;
+		}
+		side1 = get_id(r, fx+iside1[0],fy+iside1[1],fz+iside1[2]) ? 1:0;
+		side2 = get_id(r, fx+iside2[0],fy+iside2[1],fz+iside2[2]) ? 1:0;
+		corner = get_id(r, fx+icorner[0],fy+icorner[1],fz+icorner[2]) ? 1:0;
+
+		if (side1 && side2) light = 0;
+		else light = 3-(side1+side2+corner);
+		#define CONTRAST 0.8
+		light = (1.0-CONTRAST) + light/(3.0/CONTRAST);
+
 		/* get 2 sides and corner block for lighting */
-		v.r = light;
-		v.g = light;
-		v.b = light; 
+		v.r = v.g = v.b = light;
+
 		geometry_add(g, &v);
 		}
 	}
@@ -925,114 +934,27 @@ float pverts[]={
 	/*Bottom*/
 	0,-32,0, 	0,-32,-16, 	16,-32,-16,	16,-32,0,
 	};
-
-void
-matrix_load(float a[16], float b[16])
+int
+map_place_block(float vx, float vy, float vz, float x, float y, float z, struct region* region, struct geometry* chunks, unsigned char block_id, int previous)
 	{
-	memcpy(a, b, sizeof(float)*16);
-	}
-void
-matrix_identity(float m[16])
-	{
-	memset(m, 0, 16*sizeof(float));
-	m[ 0]=1; 
-	m[ 5]=1; 
-	m[10]=1; 
-	m[15]=1; 
-	}
-
-/*
-0	4	8	12
-1	5	9	13
-2	6	10	14
-3	7	11	15
-*/
-
-void
-matrix_multiply(float a[16], float b[16])
-	{
-	float tm[16];
-	tm[ 0] = a[0]*b[ 0] + a[4]*b[ 1] + a[ 8]*b[ 2] + a[12]*b[3];
-	tm[ 4] = a[0]*b[ 4] + a[4]*b[ 5] + a[ 8]*b[ 6] + a[12]*b[7];
-	tm[ 8] = a[0]*b[ 8] + a[4]*b[ 9] + a[ 8]*b[10] + a[12]*b[11];
-	tm[12] = a[0]*b[12] + a[4]*b[13] + a[ 8]*b[14] + a[12]*b[15];
-
-	tm[ 1] = a[1]*b[ 0] + a[5]*b[ 1] + a[ 9]*b[ 2] + a[13]*b[3];
-	tm[ 5] = a[1]*b[ 4] + a[5]*b[ 5] + a[ 9]*b[ 6] + a[13]*b[7];
-	tm[ 9] = a[1]*b[ 8] + a[5]*b[ 9] + a[ 9]*b[10] + a[13]*b[11];
-	tm[13] = a[1]*b[12] + a[5]*b[13] + a[ 9]*b[14] + a[13]*b[15];
-
-	tm[ 2] = a[2]*b[ 0] + a[6]*b[ 1] + a[10]*b[ 2] + a[14]*b[3];
-	tm[ 6] = a[2]*b[ 4] + a[6]*b[ 5] + a[10]*b[ 6] + a[14]*b[7];
-	tm[10] = a[2]*b[ 8] + a[6]*b[ 9] + a[10]*b[10] + a[14]*b[11];
-	tm[14] = a[2]*b[12] + a[6]*b[13] + a[10]*b[14] + a[14]*b[15];
-
-	tm[ 3] = a[3]*b[ 0] + a[7]*b[ 1] + a[11]*b[ 2] + a[15]*b[3];
-	tm[ 7] = a[3]*b[ 4] + a[7]*b[ 5] + a[11]*b[ 6] + a[15]*b[7];
-	tm[11] = a[3]*b[ 8] + a[7]*b[ 9] + a[11]*b[10] + a[15]*b[11];
-	tm[15] = a[3]*b[12] + a[7]*b[13] + a[11]*b[14] + a[15]*b[15];
-	memcpy(a, tm, 16*sizeof(float));
-	}
-
-void
-matrix_translate(float m[16], float x, float y, float z)
-	{
-
-	float trans[16]= {
-		1,0,0,0,
-		0,1,0,0,
-		0,0,1,0,
-		x,y,z,1,
-		};
-	matrix_multiply(m, trans);
-	}
-void
-matrix_rotate(float* matrix, float l, float m, float n, float theta)
-	{
-	float rotate[16];
-
-	rotate[0] = ((l * l) *(1-cos(theta))) + cos(theta);
-	rotate[1] = ((l * m) *(1-cos(theta))) + (n*sin(theta));
-	rotate[2] = ((l * n) *(1-cos(theta))) - (m*sin(theta));
-	rotate[3] = 0;
-
-	rotate[4] = ((m * l) * (1-cos(theta))) - (n * sin(theta));
-	rotate[5] = ((m * m) * (1-cos(theta))) + (cos(theta));
-	rotate[6] = ((m * n) * (1-cos(theta))) + (l * sin(theta));
-	rotate[7] = 0;
-
-	rotate[8] = ((n * l) * (1-cos(theta))) + (m * sin(theta));
-	rotate[9] = ((n * m) * (1-cos(theta))) - (l * sin(theta));
-	rotate[10] =((n * n) * (1-cos(theta))) + cos(theta);
-	rotate[11] = 0;
-
-	rotate[12]=0;
-	rotate[13]=0;
-	rotate[14]=0;
-	rotate[15]=1;
-
-	matrix_multiply(matrix, rotate);
-	}
-
-void
-make_projection_matrix(float pmat[16], float w, float h, float fov)
-	{
-	float aspect = w/h;
-	float n = 1;
-	float f = 10000;
-	float r = aspect;
-	float l = -aspect;
-	float t = 1;
-	float b = -1;
-	float height = t-b;
-	n = (height / 2.0f) / tan( ((fov/180.0)*M_PI) / 2.0);
-	float projection_matrix[] = {
-			n/r, 0, 0, 0,
-			0, n/t, 0, 0,
-			0, 0, (n+f)/(n-f), -1,
-			0, 0, (-2*f*n)/(f-n), 0
-			};	
-	memcpy(pmat, projection_matrix, sizeof(float)*16);
+	float bx,by,bz;
+	unsigned char id = cast_ray(region, previous, x,y,z, vx,vy,vz, &bx,&by,&bz);
+	printf("Result %f %f %f\n", bx,by,bz);
+	if (bx>0 && by>0 && bz>0 && id>0) {
+		unsigned int chunk_id = set_id(region, bx,by,bz, block_id);
+		unsigned char nid = get_id(region, bx,by,bz);
+		int cx = chunk_id%32;
+		int cz = chunk_id/32;
+		glDeleteBuffers(1, &chunks[chunk_id].vbo);
+		/*THIS IS A PROBLEM, WHAT IF chunk_id is invalid?*/
+		rebuild_chunk(region, chunks, chunk_id);
+		if (cx>0) rebuild_chunk(region, chunks, chunk_id-1);
+		if (cx<32) rebuild_chunk(region, chunks, chunk_id+1);
+		if (cz>0) rebuild_chunk(region, chunks, chunk_id-32);
+		if (cz<32) rebuild_chunk(region, chunks, chunk_id+32);
+		printf("ID=%i; vbo:%i\n", id, chunks[chunk_id].vbo);
+		}
+	return 0;
 	}
 int
 main(int argc, char *argv[])
@@ -1146,6 +1068,8 @@ float camvy =0;
 float camvz =0;
 float rot=0;
 float m[16];
+int mleft=0;
+int mright=0;
 float projection_matrix[16];
 make_projection_matrix(projection_matrix, b_rect.w, b_rect.h, 80);
 SDL_SetRelativeMouseMode(SDL_TRUE);
@@ -1236,7 +1160,7 @@ float theta=0;
 				}
 			}
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		#define LERP_FACTOR 0.02
+		#define LERP_FACTOR 0.01
 		if (up) {
 			camvx = lerp(camvx, m[2]*SPEED, LERP_FACTOR); 
 			camvy = lerp(camvy, m[6]*SPEED, LERP_FACTOR); 
@@ -1320,9 +1244,31 @@ float theta=0;
 		glUniformMatrix4fv(model_view_matrix_location, 1, 0, m);
 
 		int mx,my;
-		int mleft = 0;
 		int ret = SDL_GetRelativeMouseState(&mx, &my);
-		if (ret & SDL_BUTTON(SDL_BUTTON_LEFT)) mleft = 1;
+		if (ret & SDL_BUTTON(SDL_BUTTON_LEFT)) {
+			if (mleft) mleft &= 0x7F;
+			else mleft |= 0x80;
+			mleft |= 1;
+		 	}
+		else mleft=0;
+
+		if (ret & SDL_BUTTON(SDL_BUTTON_RIGHT)) {
+			if (mright) mright &= 0x7F;
+			else mright |= 0x80;
+			mright |= 1;
+		 	}
+		else mright=0;
+
+	if (mleft & 0x80){
+		map_place_block(m[2], m[6], m[10], 
+			cam_pos.x, cam_pos.y, cam_pos.z, 
+			&region, chunks, 1, 1);
+		}
+	if (mright & 0x80){
+		map_place_block(m[2], m[6], m[10], 
+			cam_pos.x, cam_pos.y, cam_pos.z, 
+			&region, chunks, 0, 0);
+		}
 
 		if (mx) {
 			cam_pos.ry += mx/256.0;

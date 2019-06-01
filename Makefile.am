@@ -15,6 +15,8 @@ mcviewer_SOURCES = \
 		src/myz.h \
 		src/shader.c \
 		src/shader.h \
+		src/math3d.c \
+		src/math3d.h \
 		src/main.c
 			
 

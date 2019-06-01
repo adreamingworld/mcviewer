@@ -9,12 +9,10 @@
 
 [ ] Ambient occlusion
 	https://0fps.net/2013/07/03/ambient-occlusion-for-minecraft-like-worlds/
-	use color attribute to shade. turn lighting off?
-	or it can complement the lighting
-	[ ] Take into account which face it is!
-	My ambient occlusion only takes into account the vertex
-	Infact depending on the face the blocks needed to
-	be checked also change!!!! Think about it
+	[X] Take into account which face it is!
+	[ ] Lighting is a little strange. Are my faces made the same way?
+		maybe triangles are affecting how the lighting gradient
+		is calculated.
 
 [X] When we change blocks we need to rebuild surrounding chunks
 	if changed block was on a boundary of a chunk!

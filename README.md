@@ -12,7 +12,7 @@ make
 ```
 
 ## Running
-	./mcviewer resources/r.0.0
+	./mcviewer resources/r.0.0.mca
 
 	WASD		- Movement
 	Q		- Move up along the Y-axis
