@@ -16,7 +16,7 @@
 
 unsigned int vao, vbo, vbo2;
 unsigned int model_view_matrix_location;
-
+unsigned int theta_location;
 /* Enumerate? */
 #define FACE_TOP	0
 #define FACE_BOTTOM	1
@@ -26,7 +26,7 @@ unsigned int model_view_matrix_location;
 #define FACE_BACK	5
 
 #define BLOCK_SIZE 16
-#define SPEED 4
+#define SPEED 2
 int lighting_enabled = 1;
 int textures_enabled = 1;
 
@@ -55,264 +55,264 @@ set_position(struct position* original, struct position* destination)
 	original->rz = (destination->rz/180.0)*M_PI;
 	}
 /*
-	below above left right front back
+	transparent [doesnt affect AO] below above left right front back
 */
-unsigned char faces[256][6] = {
-		{0,0,0,0,0,0},
-		{1,1,1,1,1,1}, /*stone*/
-		{3,2,4,4,4,4}, /*grass*/
-		{2,2,2,2,2,2}, /*dirt*/
-		{20,20,20,20,20,20}, /*cobble*/
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{8,8,8,8,8,8}, /* flowing water*/
-		{8,8,8,8,8,8}, /*water*/
-		{13,13,13,13,13,13}, /*flowing lava*/
-		{13,13,13,13,13,13}, /*lava*/
-		{9,9,9,9,9,9}, /*sand*/
-		{12,12,12,12,12,12}, /*gravel*/
-		{17,17,17,17,17,17}, /* Gold*/
-		{16,16,16,16,16,16}, /*Iron ore*/
-		{15,15,15,15,15,15}, /*Coal ore*/
-		{7,7,6,6,6,6}, /* log */
-		{5,5,5,5,5,5}, /* leaves*/
-		{0,0,0,0,0,0}, 
-		{0,0,0,0,0,0},
-		{28,28,28,28,28,28}, /*Lapis???*/
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{64,0,11,11,11,11}, /*Tall Grass*/
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{21,21,21,21,21,21}, /*Mossy cobble*/
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{28,28,28,28,28,28}, /*Mob spawner*/
-		{0,0,0,0,0,0},
-		{22,23,24,25,26,27}, /*Chest*/
-		{0,0,0,0,0,0},
-		{19,19,19,19,19,19}, /*Diamond*/
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{18,18,18,18,18,18}, /*Red stone*/
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{10,10,10,10,10,10}, /*Snow layer*/
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{29,29,29,29,29,29,}, /*Quartz block*/
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{64,64,14,14,14,14},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
-		{0,0,0,0,0,0},
+unsigned char faces[256][8] = {
+		{0,0,0,0,0,0,0,0},
+		{0,0,1,1,1,1,1,1}, /*stone*/
+		{0,0,3,2,4,4,4,4}, /*grass*/
+		{0,0,2,2,2,2,2,2}, /*dirt*/
+		{0,0,20,20,20,20,20,20}, /*cobble*/
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,8,8,8,8,8,8}, /* flowing water*/
+		{0,0,8,8,8,8,8,8}, /*water*/
+		{0,0,13,13,13,13,13,13}, /*flowing lava*/
+		{0,0,13,13,13,13,13,13}, /*lava*/
+		{0,0,9,9,9,9,9,9}, /*sand*/
+		{0,0,12,12,12,12,12,12}, /*gravel*/
+		{0,0,17,17,17,17,17,17}, /* Gold*/
+		{0,0,16,16,16,16,16,16}, /*Iron ore*/
+		{0,0,15,15,15,15,15,15}, /*Coal ore*/
+		{0,0,7,7,6,6,6,6}, /* log */
+		{1,0,5,5,5,5,5,5}, /* leaves*/
+		{0,0,0,0,0,0,0,0}, 
+		{0,0,0,0,0,0,0,0},
+		{0,0,28,28,28,28,28,28}, /*Lapis???*/
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{1,1,64,0,11,11,11,11}, /*Tall Grass*/
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,21,21,21,21,21,21}, /*Mossy cobble*/
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,28,28,28,28,28,28}, /*Mob spawner*/
+		{0,0,0,0,0,0,0,0},
+		{0,0,22,23,24,25,26,27}, /*Chest*/
+		{0,0,0,0,0,0,0,0},
+		{0,0,19,19,19,19,19,19}, /*Diamond*/
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,18,18,18,18,18,18}, /*Red stone*/
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,10,10,10,10,10,10}, /*Snow layer*/
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{1,0,64,64,30,30,30,30},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,29,29,29,29,29,29,}, /*Quartz block*/
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{1,0,64,64,14,14,14,14}, /*Tall plant*/
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
+		{0,0,0,0,0,0,0,0},
 		};
 
 struct vertex {
@@ -543,9 +543,14 @@ build_top(struct region* r, float x, float y, float z, int face_ind, float nx, f
 			iside1[0] = 0;
 			iside2[1] = 0;
 		}
-		side1 = get_id(r, fx+iside1[0],fy+iside1[1],fz+iside1[2]) ? 1:0;
-		side2 = get_id(r, fx+iside2[0],fy+iside2[1],fz+iside2[2]) ? 1:0;
-		corner = get_id(r, fx+icorner[0],fy+icorner[1],fz+icorner[2]) ? 1:0;
+		side1 = get_id(r, fx+iside1[0],fy+iside1[1],fz+iside1[2]);
+		side2 = get_id(r, fx+iside2[0],fy+iside2[1],fz+iside2[2]);
+		corner = get_id(r, fx+icorner[0],fy+icorner[1],fz+icorner[2]);
+
+		/* Not air and not not effect Ambient Occlusion*/
+		side1 = (side1 && !faces[side1][1]) ? 1:0;
+		side2 = (side2 && !faces[side2][1]) ? 1:0;
+		corner = (corner && !faces[corner][1]) ? 1:0;
 
 		if (side1 && side2) light = 0;
 		else light = 3-(side1+side2+corner);
@@ -596,16 +601,7 @@ setup_sdl(char* title, int w, int h, int x, int y)
 
 	glEnable(GL_TEXTURE_2D);
 	glEnable(GL_DEPTH_TEST);
-	//glEnable(GL_LIGHTING);
-	glEnable(GL_LIGHT0);
-	glEnable(GL_LIGHT1);
-	glEnable(GL_LIGHT2);
 	glEnable(GL_CULL_FACE);
-	float dir[] = {0,0.7,0.4,0};
-	float color[] = {1,1,1,1};
-	glLightfv(GL_LIGHT0, GL_POSITION, dir);
-	glLightfv(GL_LIGHT0, GL_AMBIENT, color);
-	glLightModelfv(GL_LIGHT_MODEL_AMBIENT, color);
 	glClearColor(0,0,1,0);
 
 	struct shader shaders[2];
@@ -617,11 +613,10 @@ setup_sdl(char* title, int w, int h, int x, int y)
 	unsigned int program = shader_create_program(2, shaders);
 
 	model_view_matrix_location = glGetUniformLocation(program, "ModelViewProjectionMatrix");
+	printf("mvp location = %i\n", model_view_matrix_location);
+	theta_location = glGetUniformLocation(program, "theta");
+	printf("theta location = %i\n", theta_location);
 
-	float aspect = ((float)w/(float)h);
-	glMatrixMode(GL_PROJECTION);
-	glFrustum(-aspect, aspect, -1, 1, 1, 10000);
-	glMatrixMode(GL_MODELVIEW);
 	}
 
 /*Set a block in the region
@@ -671,14 +666,9 @@ geometry_to_vbo(struct geometry* g)
 	glBindAttribLocation(1, 0, "in_Position");
 	glBindAttribLocation(1, 1, "in_TexCoord");
 	glBindAttribLocation(1, 2, "in_Color");
-
+g->vbo = vbo;
 	return vbo;
 	}
-
-struct line {
-	float a[3];
-	float b[3];
-	};
 
 /*
 We don't really need the square root to get the length?
@@ -753,7 +743,7 @@ cast_ray(struct region* region, int previous, float x, float y, float z,
 	float vx, float vy, float vz, float *bx, float *by, float *bz)
 	{
 	float max = 4.0f;
-	float m = 32;
+	float m = max*10;
 	unsigned char id;
 	float nx,ny,nz;
 	float px,py,pz;
@@ -782,74 +772,75 @@ cast_ray(struct region* region, int previous, float x, float y, float z,
 /*Keep THIS!!! - Slow but it is the most accurate?, With this we
 know which face is hit
 */
-unsigned char
-old_cast_ray(struct line *l, struct region* region, float *bx, float *by, float *bz)
-	{
-	unsigned char id=0;
-	float x,y,z;
-	float total_length=0;
-	float ray[3];
-	float c_pos[3]; /*current position on ray*/
-	memcpy(c_pos, l->a, sizeof(float)*3);
-	/* Get the vector of the ray */
-	ray[0] = l->b[0] - l->a[0];
-	ray[1] = l->b[1] - l->a[1];
-	ray[2] = l->b[2] - l->a[2];
-	//printf("ray %.2f %.2f %.2f", ray[0], ray[1], ray[2]);
-	float ray_length = sqrt(ray[0]*ray[0] + ray[1]*ray[1] + ray[2]*ray[2]);
-	//printf("length %02f\n", ray_length);
-
-		//printf("initial c_pos:%f %f %f\n", c_pos[0], c_pos[1], c_pos[2]);
-
-	int i;
-	while(1) {
-		/*Get length to next X,Y,Z intersection*/
-		float tox=4;
-		float toy=4;
-		float toz=4;
-		tox = get_next_intersection(0, ray, c_pos);
-		toy = get_next_intersection(1, ray, c_pos);
-		toz = get_next_intersection(2, ray, c_pos);
-
-		float prog=toz; /*progress*/
-		/*Dont let it go minus or minus infity, if it does then make
-			it far away
-			Zero is also not good, progress will not be made
-		*/
-		if (tox<=0) tox=100;
-		if (toy<=0) toy=100;
-		if (toz<=0) toz=100;
-		/*Choose shortest*/
-		if (toy<prog) prog=toy;
-		if (tox<prog) prog=tox;
-		//printf("Loop prog=%f; %f %f %f\n", prog, tox, toy, toz);
-		total_length+=prog;
-		x = lerp(c_pos[0], c_pos[0]+ray[0], prog);
-		y = lerp(c_pos[1], c_pos[1]+ray[1], prog);
-		z = lerp(c_pos[2], c_pos[2]+ray[2], prog);
-		/* next time start from last position */
-		c_pos[0] =x;
-		c_pos[1] =y;
-		c_pos[2] =z;
-		id = get_id(region, x,y,z);
-		//printf("Got ID:%i\n", id);
-		//printf("[%i]c_pos:%f %f %f\n", i, c_pos[0], c_pos[1], c_pos[2]);
-		if (id) break;
-		if (total_length > 4.0f) break;
-		}
-		l->b[0] = x;
-		l->b[1] = y;
-		l->b[2] = z;
-	if (bx) *bx=x;
-	if (by) *by=y;
-	if (bz) *bz=z;
-	return id;
-	}
+//unsigned char
+//old_cast_ray(struct line *l, struct region* region, float *bx, float *by, float *bz)
+//	{
+//	unsigned char id=0;
+//	float x,y,z;
+//	float total_length=0;
+//	float ray[3];
+//	float c_pos[3]; /*current position on ray*/
+//	memcpy(c_pos, l->a, sizeof(float)*3);
+//	/* Get the vector of the ray */
+//	ray[0] = l->b[0] - l->a[0];
+//	ray[1] = l->b[1] - l->a[1];
+//	ray[2] = l->b[2] - l->a[2];
+//	//printf("ray %.2f %.2f %.2f", ray[0], ray[1], ray[2]);
+//	float ray_length = sqrt(ray[0]*ray[0] + ray[1]*ray[1] + ray[2]*ray[2]);
+//	//printf("length %02f\n", ray_length);
+//
+//		//printf("initial c_pos:%f %f %f\n", c_pos[0], c_pos[1], c_pos[2]);
+//
+//	int i;
+//	while(1) {
+//		/*Get length to next X,Y,Z intersection*/
+//		float tox=4;
+//		float toy=4;
+//		float toz=4;
+//		tox = get_next_intersection(0, ray, c_pos);
+//		toy = get_next_intersection(1, ray, c_pos);
+//		toz = get_next_intersection(2, ray, c_pos);
+//
+//		float prog=toz; /*progress*/
+//		/*Dont let it go minus or minus infity, if it does then make
+//			it far away
+//			Zero is also not good, progress will not be made
+//		*/
+//		if (tox<=0) tox=100;
+//		if (toy<=0) toy=100;
+//		if (toz<=0) toz=100;
+//		/*Choose shortest*/
+//		if (toy<prog) prog=toy;
+//		if (tox<prog) prog=tox;
+//		//printf("Loop prog=%f; %f %f %f\n", prog, tox, toy, toz);
+//		total_length+=prog;
+//		x = lerp(c_pos[0], c_pos[0]+ray[0], prog);
+//		y = lerp(c_pos[1], c_pos[1]+ray[1], prog);
+//		z = lerp(c_pos[2], c_pos[2]+ray[2], prog);
+//		/* next time start from last position */
+//		c_pos[0] =x;
+//		c_pos[1] =y;
+//		c_pos[2] =z;
+//		id = get_id(region, x,y,z);
+//		//printf("Got ID:%i\n", id);
+//		//printf("[%i]c_pos:%f %f %f\n", i, c_pos[0], c_pos[1], c_pos[2]);
+//		if (id) break;
+//		if (total_length > 4.0f) break;
+//		}
+//		l->b[0] = x;
+//		l->b[1] = y;
+//		l->b[2] = z;
+//	if (bx) *bx=x;
+//	if (by) *by=y;
+//	if (bz) *bz=z;
+//	return id;
+//	}
 void
 build_chunk(struct region* region, struct geometry* g, unsigned int chunk_id)
 	{
 	int j;
 	int i=chunk_id;
+	if (!region->chunks[chunk_id]) return ;
 
 		for (j=0; j<16*16*256;j++) {
 			int x= j%16;
@@ -862,7 +853,8 @@ build_chunk(struct region* region, struct geometry* g, unsigned int chunk_id)
 			//if (!region->chunks[(x/16)+(z/16)*32]) continue;
 
 			unsigned char id = get_id(region, x,y, z);
-			if (! (id==0 )) continue;
+			/* If not transparent and also not air*/
+			if (!(id==0) && !faces[id][0]) continue;
 
 			unsigned char below=0, above=0, left=0, right=0, front=0, back=0;
 			if (y>0) below = 	get_id(region, x,y-1,z);
@@ -876,12 +868,12 @@ build_chunk(struct region* region, struct geometry* g, unsigned int chunk_id)
 			int ny = y*BLOCK_SIZE;
 			int nz = z*BLOCK_SIZE;
 
-			if (below) 	build_top(region, nx,ny-BLOCK_SIZE,nz, FACE_TOP, 0,1,0, g, 	faces[below][0]);
-			if (above) 	build_top(region, nx,ny+BLOCK_SIZE,nz, FACE_BOTTOM, 0,-1,0, g, 	faces[above][1]);
-			if (left )	build_top(region, nx-BLOCK_SIZE,ny,nz, FACE_RIGHT, 1,0,0, g, 	faces[left][2]);
-			if (right)	build_top(region, nx+BLOCK_SIZE,ny,nz, FACE_LEFT, -1,0,0, g, 	faces[right][3]);
-			if (front)	build_top(region, nx,ny,nz+BLOCK_SIZE, FACE_BACK, 0,0,-1, g, 	faces[front][4]);
-			if (back )	build_top(region, nx,ny,nz-BLOCK_SIZE, FACE_FRONT, 0,0,1, g, 	faces[back][5]);
+			if (below) 	build_top(region, nx,ny-BLOCK_SIZE,nz, FACE_TOP, 0,1,0, g, 	faces[below][2]);
+			if (above) 	build_top(region, nx,ny+BLOCK_SIZE,nz, FACE_BOTTOM, 0,-1,0, g, 	faces[above][3]);
+			if (left )	build_top(region, nx-BLOCK_SIZE,ny,nz, FACE_RIGHT, 1,0,0, g, 	faces[left][4]);
+			if (right)	build_top(region, nx+BLOCK_SIZE,ny,nz, FACE_LEFT, -1,0,0, g, 	faces[right][5]);
+			if (front)	build_top(region, nx,ny,nz+BLOCK_SIZE, FACE_BACK, 0,0,-1, g, 	faces[front][6]);
+			if (back )	build_top(region, nx,ny,nz-BLOCK_SIZE, FACE_FRONT, 0,0,1, g, 	faces[back][7]);
 			}
 	}
 
@@ -893,7 +885,7 @@ rebuild_chunk(struct region* r, struct geometry chunks[32*32], unsigned int id)
 	free(g->verts);
 	geometry_init(g);
 	build_chunk(r, g, id);
-	chunks[id].vbo = geometry_to_vbo(g);
+	geometry_to_vbo(g);
 	}
 void
 build_chunks(struct region *region, struct geometry chunks[32*32])
@@ -907,20 +899,40 @@ build_chunks(struct region *region, struct geometry chunks[32*32])
 		if (!region->chunks[i]) continue;
 		unsigned int cx = i%32;
 		unsigned int cz = i/32;
-		//if (cz>0) continue;
-		//if (cx>0) continue;
 		build_chunk(region, g, i);
-		chunks[i].vbo = geometry_to_vbo(g);
+		geometry_to_vbo(g);
 		//printf("g count %i vbo=%i\n", g->count, chunks[i].vbo);
 		}
 	}
 
 struct player {
-	float x,y,z;
-	float vx,vy,vz;
-	float ry;
+	float matrix[16];
+	float v[3];
 	};
 
+void
+player_update(struct player* p, struct region* r)
+	{
+	float x = p->matrix[12]/BLOCK_SIZE;
+	float y = p->matrix[13]/BLOCK_SIZE;
+	float z = p->matrix[14]/BLOCK_SIZE;
+	float v[3];
+	v[0] = p->v[0];
+	v[1] = p->v[1];
+	v[2] = p->v[2];
+
+	/* Collision test */
+	unsigned char id = get_id(r, x+v[0],y+v[1],z+v[2]);
+	if (id == 0) {
+		/*Gravity */
+		p->v[1] -= 0.05;
+		p->matrix[12]+=v[0]*BLOCK_SIZE;
+		p->matrix[13]+=v[1]*BLOCK_SIZE;
+		p->matrix[14]+=v[2]*BLOCK_SIZE;
+		} 
+	else p->v[0] = p->v[1] = p->v[2]=0;
+
+	} 
 float pverts[]={
 	0,0,0, 		0,-32,0,	16,-32,0,	16,0,0,
 	/* Back */
@@ -956,6 +968,16 @@ map_place_block(float vx, float vy, float vz, float x, float y, float z, struct 
 		}
 	return 0;
 	}
+
+void
+geometry_draw(struct geometry* g)
+	{
+	glBindBuffer(GL_ARRAY_BUFFER, g->vbo);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(struct vertex), 0);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(struct vertex), (const void*) (6*sizeof(float)));
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(struct vertex), (const void*) (8*sizeof(float)));
+	glDrawArrays(GL_TRIANGLES, 0, g->count);
+	}
 int
 main(int argc, char *argv[])
 	{
@@ -964,10 +986,12 @@ main(int argc, char *argv[])
 	FILE *fp;
 	int i;
 	int region_map[0x2000];
+	struct region region = {0};
+	int quit = 0;
+	SDL_Event event;
+int display_index = 0;
 
 	puts(PACKAGE_STRING);
-	struct region region = {0};
-struct line line = {0,0,0, 0,0,10};
 	filename = argv[1];
 
 	printf("Opening region file %s\n", filename);
@@ -977,15 +1001,10 @@ struct line line = {0,0,0, 0,0,10};
 
 	for (i=0; i<32*32; i++) {
 		int x = i%32;
-		if (region_map[i]) printf("XX");
-		else printf("00");
+		if (region_map[i]) printf("X");
+		else printf("0");
 		if (x==31) puts("");
 		}
-
-	angle_between3(
-		((float[3]){0,1,0}),
-		((float[3]){1,0,0})
-		);
 
 	for (i=0; i<32*32; i++) {
 		unsigned char* ptr = (unsigned char*)(&region_map[i]);
@@ -1004,9 +1023,6 @@ struct line line = {0,0,0, 0,0,10};
 	fclose(fp);
 
 	/* Set up SDL*/
-	int quit = 0;
-	SDL_Event event;
-int display_index = 0;
 
 SDL_Init(SDL_INIT_VIDEO);
 
@@ -1044,24 +1060,31 @@ free(pixels);
 
 set_position(&cam_pos, &photo_position);
 
-struct geometry geometry;
-unsigned int gvbo;
-geometry_init(&geometry);
-//build_geometry(&geometry, &region);
-printf("g count %i\n", geometry.count);
-
 struct geometry chunks[32*32] = {0};
+struct geometry player_geometry = {};
 
-//gvbo = geometry_to_vbo(&geometry);
+geometry_init(&player_geometry);
+for (i=0; i<6; i++)
+	{
+	int j;
+	for (j=0;j<6;j++) {
+		struct vertex v;
+		v.x = cube_verts[face_ints[i][j]*3+0];
+		v.y = cube_verts[face_ints[i][j]*3+1]*2.0;
+		v.z = cube_verts[face_ints[i][j]*3+2];
+		v.r = 1;
+		v.g = 0;
+		v.b = 1;
+		geometry_add(&player_geometry, &v);
+		}
+	}
+geometry_to_vbo(&player_geometry);
 
 build_chunks(&region, chunks);
 
 char up=0,down=0,left=0,right=0;
 char q_key=0;
 char e_key=0;
-
-glLineWidth(4);
-glPointSize(8);
 
 float camvx =0;
 float camvy =0;
@@ -1073,19 +1096,27 @@ int mright=0;
 float projection_matrix[16];
 make_projection_matrix(projection_matrix, b_rect.w, b_rect.h, 80);
 SDL_SetRelativeMouseMode(SDL_TRUE);
+
+struct player player = {0};
+matrix_identity(player.matrix);
+matrix_translate(player.matrix, 0, 85*BLOCK_SIZE, 45*BLOCK_SIZE);
 float theta=0;
+float target_rx=cam_pos.rx;
+float target_ry=cam_pos.ry;
+
 	while(!quit) {
 		matrix_load(m, projection_matrix);
 		matrix_rotate(m, 1,0,0, cam_pos.rx);
 		matrix_rotate(m, 0,1,0, cam_pos.ry);
 		matrix_translate(m, -cam_pos.x*BLOCK_SIZE, -cam_pos.y*BLOCK_SIZE, -cam_pos.z*BLOCK_SIZE);
 
-
 		while (SDL_PollEvent(&event)) {
 			switch (event.type) {
 				case SDL_KEYDOWN: 
 					switch(event.key.keysym.sym) {
 						case SDLK_ESCAPE:quit = 1;break;
+						case SDLK_UP:  player.v[2]+=0.1; break;
+						case SDLK_DOWN:  player.v[2]-=0.1; break;
 						case SDLK_w: up=1; break;
 						case SDLK_s: down=1; break;
 						case SDLK_a: left=1; break;
@@ -1105,6 +1136,9 @@ float theta=0;
 							camvz=0;
 							/*Set cam position*/
 							set_position(&cam_pos, &photo_position);
+
+							target_rx = cam_pos.rx;
+							target_ry = cam_pos.ry;
 							break;
 						case SDLK_t: {
 							textures_enabled ^= 1; 
@@ -1122,27 +1156,18 @@ float theta=0;
 								glEnableVertexAttribArray(2);
 							break;
 							}
+						case SDLK_o:
+							{
+							player.matrix[12] = 15*BLOCK_SIZE;
+							player.matrix[13] = 85*BLOCK_SIZE;
+							player.matrix[14] = 45*BLOCK_SIZE;
+
+							break;
+							}
 						case SDLK_SPACE:
 							{
-							float bx,by,bz;
-							float vx=m[2]; 
-							float vy=m[6]; 
-							float vz=m[10]; 
-							unsigned char id = cast_ray(&region, 1, cam_pos.x,cam_pos.y,cam_pos.z, vx,vy,vz, &bx,&by,&bz);
-							printf("Result %f %f %f\n", bx,by,bz);
-							if (bx>0 && by>0 && bz>0 && id>0) {
-								unsigned int chunk_id = set_id(&region, bx,by,bz, 1);
-								int cx = chunk_id%32;
-								int cz = chunk_id/32;
-								glDeleteBuffers(1, &chunks[chunk_id].vbo);
-								/*THIS IS A PROBLEM, WHAT IF chunk_id is invalid?*/
-								rebuild_chunk(&region, chunks, chunk_id);
-								if (cx>0) rebuild_chunk(&region, chunks, chunk_id-1);
-								if (cx<32) rebuild_chunk(&region, chunks, chunk_id+1);
-								if (cz>0) rebuild_chunk(&region, chunks, chunk_id-32);
-								if (cz<32) rebuild_chunk(&region, chunks, chunk_id+32);
-								printf("ID=%i; vbo:%i\n", id, chunks[chunk_id].vbo);
-								}
+							player.v[1]+=0.6;
+
 							break;
 							}
 						}
@@ -1160,7 +1185,7 @@ float theta=0;
 				}
 			}
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		#define LERP_FACTOR 0.01
+		#define LERP_FACTOR 0.02
 		if (up) {
 			camvx = lerp(camvx, m[2]*SPEED, LERP_FACTOR); 
 			camvy = lerp(camvy, m[6]*SPEED, LERP_FACTOR); 
@@ -1243,6 +1268,8 @@ float theta=0;
 
 		glUniformMatrix4fv(model_view_matrix_location, 1, 0, m);
 
+		glUniform1f(theta_location, theta);
+		theta+=0.1;
 		int mx,my;
 		int ret = SDL_GetRelativeMouseState(&mx, &my);
 		if (ret & SDL_BUTTON(SDL_BUTTON_LEFT)) {
@@ -1271,21 +1298,25 @@ float theta=0;
 		}
 
 		if (mx) {
-			cam_pos.ry += mx/256.0;
+			target_ry += mx/256.0;
 		}
 		if (my) {
-			cam_pos.rx += my/256.0;
+			target_rx += my/256.0;
 		}
+
+		cam_pos.rx = lerp(cam_pos.rx, target_rx, 0.2);
+		cam_pos.ry = lerp(cam_pos.ry, target_ry, 0.2);
 
 
 		for (i=0; i<32*32; i++) {
-			glBindBuffer(GL_ARRAY_BUFFER, chunks[i].vbo);
-			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(struct vertex), 0);
-			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(struct vertex), (const void*) (6*sizeof(float)));
-			glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(struct vertex), (const void*) (8*sizeof(float)));
-			glDrawArrays(GL_TRIANGLES, 0, chunks[i].count);
+			geometry_draw(&chunks[i]);
 		}
 
+		/* Render player*/
+		player_update(&player, &region);
+		matrix_multiply(m, player.matrix);
+		glUniformMatrix4fv(model_view_matrix_location, 1, 0, m);
+		geometry_draw(&player_geometry);
 		SDL_GL_SwapWindow(window);
 		}
 
