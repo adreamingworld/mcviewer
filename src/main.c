@@ -587,8 +587,8 @@ setup_sdl(char* title, int w, int h, int x, int y)
 
 	SDL_Init(SDL_INIT_VIDEO);
 
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
 	window = SDL_CreateWindow(title, x,y, w, h, SDL_WINDOW_OPENGL|SDL_WINDOW_BORDERLESS|SDL_WINDOW_MOUSE_CAPTURE);
 	context = SDL_GL_CreateContext(window);
 	puts((const char*)glGetString(GL_VERSION));
@@ -596,8 +596,8 @@ setup_sdl(char* title, int w, int h, int x, int y)
 	if (!context) puts("Failed context");
 	glewInit();
 	/*VAO*/
-	glCreateVertexArrays(1, &vao);
-	glBindVertexArray(vao);
+//	glCreateVertexArrays(1, &vao);
+//	glBindVertexArray(vao);
 
 	glEnable(GL_TEXTURE_2D);
 	glEnable(GL_DEPTH_TEST);

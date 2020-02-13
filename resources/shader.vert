@@ -1,10 +1,10 @@
-#version 330
-in vec3 in_Position;
-in vec2 in_TexCoord;
-in vec3 in_Color;
+#version 130
+attribute vec3 in_Position;
+attribute vec2 in_TexCoord;
+attribute vec3 in_Color;
 
-out vec2 TexCoord;
-out vec3 Color;
+varying vec2 TexCoord;
+varying vec3 Color;
 
 uniform mat4 ModelViewProjectionMatrix;
 uniform float theta;
